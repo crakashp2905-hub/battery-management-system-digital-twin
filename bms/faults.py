@@ -219,7 +219,7 @@ class HybridFaultDetector:
 
     def __init__(self, n_trees: int = 80, random_state: int = 0,
                  ml_min_confidence: float = 0.65, buffer_window: int = 30,
-                 chemistry: str = "nmc"):
+                 chemistry: str = "nmc", i_short_circuit_A: float = 20.0):
         self.clf = RandomForestClassifier(n_estimators=n_trees,
                                           random_state=random_state,
                                           class_weight="balanced", n_jobs=1)
@@ -232,9 +232,19 @@ class HybridFaultDetector:
         self._v_overcharge: float = props["v_overcharge"]
         self._v_dropout: float = props["v_dropout"]
         self._T_runaway_C: float = props["T_runaway_C"]
+        # Per-cell current magnitude above which a short circuit is declared.
+        self._i_short_circuit_A: float = float(i_short_circuit_A)
 
     # ---- Rules ------------------------------------------------------
-    def rule_check(self, v_cells: np.ndarray, T_cells: np.ndarray) -> FaultMode:
+    def rule_check(self, v_cells: np.ndarray, T_cells: np.ndarray,
+                   currents: np.ndarray | None = None) -> FaultMode:
+        # Short circuit first: an over-current spike is the fastest, most
+        # safety-critical signature and must be able to trip the contactor.
+        # (Previously short circuit had no rule and relied on the advisory ML
+        # layer, which cannot trip — a genuine safety gap.)
+        if currents is not None and (
+                np.abs(np.asarray(currents, float)) >= self._i_short_circuit_A).any():
+            return FaultMode.SHORT_CIRCUIT
         if (v_cells >= self._v_overcharge).any():
             return FaultMode.OVERCHARGE
         if (v_cells <= self._v_dropout).any():
@@ -254,7 +264,8 @@ class HybridFaultDetector:
 
     # ---- Combined ---------------------------------------------------
     def predict_step(self, features: np.ndarray, v_cells: np.ndarray,
-                     T_cells: np.ndarray) -> tuple[str, str]:
+                     T_cells: np.ndarray,
+                     currents: np.ndarray | None = None) -> tuple[str, str]:
         """Evaluate one step: update buffer, run rule check, then ML.
 
         Parameters
@@ -263,6 +274,9 @@ class HybridFaultDetector:
             Base feature vector from ``extract_features``.
         v_cells : (n,) array   Per-cell terminal voltages [V].
         T_cells : (n,) array   Per-cell temperatures [°C].
+        currents : (n,) array, optional
+            Per-cell currents [A].  Enables the current-based short-circuit
+            rule; when omitted the short-circuit rule is skipped.
 
         Returns
         -------
@@ -273,7 +287,7 @@ class HybridFaultDetector:
         self._buffer.push(v_cells, T_cells)
 
         # Rule layer always takes precedence.
-        rule = self.rule_check(v_cells, T_cells)
+        rule = self.rule_check(v_cells, T_cells, currents)
         if rule != FaultMode.NONE:
             return rule.value, "rule"
 

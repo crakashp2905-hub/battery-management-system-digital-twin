@@ -45,7 +45,8 @@ import numpy as np
 
 from .balancing import (Balancer, InductorBalancer, PassiveBalancer,
                         SwitchedCapacitorBalancer)
-from .faults import FaultMode, HybridFaultDetector, extract_features
+from .faults import (FaultInjector, FaultMode, HybridFaultDetector,
+                     extract_features)
 from .pack import BatteryPack
 from .passport import BatteryPassport
 from .thermal import PredictiveCoolingController, ThermalModel
@@ -74,6 +75,11 @@ class SupervisorConfig:
     # Optional power limits [W] (np.inf = no limit).
     max_discharge_power_W: float = float("inf")
     max_charge_power_W: float = float("inf")
+    # Predictive-cooling controller gains (were hard-coded in the supervisor).
+    cooling_kp: float = 0.15
+    cooling_ki: float = 0.005
+    cooling_kd: float = 0.4
+    cooling_ff_gain: float = 0.02
 
 
 @dataclass
@@ -83,12 +89,16 @@ class BMSSupervisor:
     detector: HybridFaultDetector
     config: SupervisorConfig = field(default_factory=SupervisorConfig)
     state: BMSState = BMSState.IDLE
+    # Optional fault injector: when set, faults are applied to the measured
+    # signals each step so they actually reach the detector (rule + ML).
+    injector: FaultInjector | None = None
 
     def __post_init__(self):
         self._cooling = PredictiveCoolingController(
-            kp=0.15, ki=0.005, kd=0.4,
+            kp=self.config.cooling_kp, ki=self.config.cooling_ki,
+            kd=self.config.cooling_kd,
             setpoint=self.config.T_setpoint_C, out_max=1.0,
-            ff_gain=0.02,
+            ff_gain=self.config.cooling_ff_gain,
         )
         self._inductor = InductorBalancer()
         self._sc = SwitchedCapacitorBalancer()
@@ -96,11 +106,13 @@ class BMSSupervisor:
         self._alarm_streak = 0
         self._last_v_cells = self.pack.cell_voltages()
         self._last_T_cells = self.thermal.T.copy()
+        self._last_cell_currents = np.zeros(self.pack.n_cells)
         self._fault_log: list[dict] = []
 
         # Battery Passport — initialised from chemistry props
         from .chemistry import get_chemistry_props
         _props = get_chemistry_props(self.pack.cfg.chemistry)
+        self._v_min_cell = float(_props["v_min"])
         self.passport = BatteryPassport(
             nominal_capacity_Ah=float(self.pack.capacities_Ah.sum()),
             nominal_voltage_V=_props["nominal_voltage_V"] * self.pack.n_cells,
@@ -141,14 +153,24 @@ class BMSSupervisor:
         return requested_A
 
     # ------------------------------------------------------------------
-    def _evaluate_faults(self, k: int) -> tuple[str, str]:
+    def _evaluate_faults(self, k: int, dt: float) -> tuple[str, str]:
         v_cells = self.pack.cell_voltages(temperatures_C=self.thermal.T)
         T_cells = self.thermal.T.copy()
+        # Use the currents actually applied last step (not zeros), so the
+        # current-dependent features and the short-circuit rule are live.
+        currents = self._last_cell_currents.copy()
+
+        # Inject faults into the *measured* signals so they reach the detector.
+        # With no injector this is a no-op and detection runs on clean signals.
+        if self.injector is not None:
+            v_cells = self.injector.apply_to_voltage_meas(v_cells, k)
+            T_cells = self.injector.apply_to_temperatures(T_cells, k, dt)
+            currents = self.injector.apply_to_currents(currents, k)
+
         dv = v_cells - self._last_v_cells
         dT = T_cells - self._last_T_cells
-        currents = np.zeros(self.pack.n_cells)
         feats = extract_features(v_cells, currents, T_cells, dv, dT)
-        label, src = self.detector.predict_step(feats, v_cells, T_cells)
+        label, src = self.detector.predict_step(feats, v_cells, T_cells, currents)
         self._last_v_cells, self._last_T_cells = v_cells, T_cells
         if label != FaultMode.NONE.value:
             if src == "rule":
@@ -186,7 +208,7 @@ class BMSSupervisor:
             Keys: ``state``, ``fault_label``, ``fault_source``, ``v_cells``,
             ``v_pack``, ``soc``, ``T_cells``, ``cooling_duty``, ``balancer``,
             ``balancing_currents``, ``imbalance``, ``cmd_current``,
-            ``derated``, ``power_W``, ``peak_power_W``.
+            ``derated``, ``power_W``, ``peak_power_W``, ``soe_Wh``.
         """
         # ---- 0. Power → current conversion ---------------------------
         if requested_power_W is not None:
@@ -203,10 +225,15 @@ class BMSSupervisor:
                 requested_pack_current_A = 0.0
 
         # ---- 1. Fault evaluation -------------------------------------
-        fault_label, fault_source = self._evaluate_faults(k)
+        fault_label, fault_source = self._evaluate_faults(k, dt)
 
-        if (self._alarm_streak >= self.config.consecutive_alarms_to_trip
-                and self.state != BMSState.FAULT):
+        # Thermal runaway is critical → latch to terminal SHUTDOWN at once.
+        if (fault_source == "rule"
+                and fault_label == FaultMode.THERMAL_RUNAWAY.value
+                and self.state != BMSState.SHUTDOWN):
+            self.state = BMSState.SHUTDOWN
+        elif (self._alarm_streak >= self.config.consecutive_alarms_to_trip
+                and self.state not in (BMSState.FAULT, BMSState.SHUTDOWN)):
             self.state = BMSState.FAULT
 
         # ---- 2. State logic / current command ------------------------
@@ -214,7 +241,7 @@ class BMSSupervisor:
         cooling_duty = 0.0
         derated = False
 
-        if self.state == BMSState.FAULT:
+        if self.state in (BMSState.FAULT, BMSState.SHUTDOWN):
             cmd_current = 0.0
             cooling_duty = 1.0
             balancer = None
@@ -241,6 +268,8 @@ class BMSSupervisor:
                                    balancing_currents=bal_currents,
                                    cell_temperatures_C=self.thermal.T)
         currents_per_group = cmd_current + bal_currents
+        # Remember the applied per-group currents for next step's fault eval.
+        self._last_cell_currents = np.asarray(currents_per_group, float)
 
         # Use group-level SOC and R0 (correct for both n_parallel=1 and >1).
         ocv = np.array([
@@ -251,7 +280,7 @@ class BMSSupervisor:
         heat = ThermalModel.heat_generation(currents_per_group, R0,
                                             pack_step["v_cells"], ocv)
 
-        if self.state != BMSState.FAULT:
+        if self.state not in (BMSState.FAULT, BMSState.SHUTDOWN):
             cooling_duty = self._cooling.step(
                 float(self.thermal.T.max()), dt,
                 predicted_heat_W=float(heat.sum()),
@@ -263,11 +292,18 @@ class BMSSupervisor:
         v_pack = pack_step["v_pack"]
         power_W = float(v_pack * cmd_current)
 
-        # Peak power capability: V_oc² / (4 × R0_series)
-        # where R0_series = sum of group R0s (already the effective parallel R0)
+        # Peak *deliverable* discharge power: bounded by the weakest series
+        # group reaching the min-voltage cutoff (consistent with
+        # diagnostics.compute_crate_map).  NOT the matched-load V_oc²/(4·R0),
+        # which occurs at V_terminal = V_oc/2 — far below cutoff and physically
+        # unreachable — and which also ignores the R1/R2 transient drops.
         ocv_pack = float(np.sum(ocv))
         R0_series = float(np.sum(R0))
-        peak_power_W = (ocv_pack ** 2) / max(4.0 * R0_series, 1e-9)
+        i_max_per_group = np.maximum(0.0, (ocv - self._v_min_cell)
+                                     / np.maximum(R0, 1e-9))
+        i_max_pack = float(i_max_per_group.min())      # weakest group limits I
+        v_pack_at_imax = ocv_pack - R0_series * i_max_pack
+        peak_power_W = max(0.0, v_pack_at_imax * i_max_pack)
 
         # ---- 5. Passport + State of Energy ---------------------------
         soc_mean = float(pack_step["soc"].mean())
@@ -297,3 +333,19 @@ class BMSSupervisor:
     @property
     def fault_log(self) -> list[dict]:
         return list(self._fault_log)
+
+    # ------------------------------------------------------------------
+    def clear_fault(self) -> bool:
+        """Operator reset: clear a latched ``FAULT`` and return to ``IDLE``.
+
+        Resets the rule-alarm streak so the pack can resume operation.
+        ``SHUTDOWN`` (entered on a critical fault such as thermal runaway) is
+        terminal and is deliberately **not** cleared.  Returns ``True`` if a
+        fault was cleared, ``False`` if there was nothing to clear or the state
+        is terminal.
+        """
+        if self.state == BMSState.FAULT:
+            self.state = BMSState.IDLE
+            self._alarm_streak = 0
+            return True
+        return False

@@ -93,7 +93,7 @@ class EKFEstimator:
 
     @property
     def soc(self) -> float:
-        return float(self.x[0])
+        return float(np.clip(self.x[0], 0.0, 1.0))
 
     @property
     def soc_uncertainty_1sigma(self) -> float:
@@ -123,18 +123,21 @@ class EKFEstimator:
                       (1 - a1) * p.R1,
                       (1 - a2) * p.R2])
         self.x = F @ self.x + b * current
-        self.x[0] = np.clip(self.x[0], 0.0, 1.0)
+        # State is intentionally NOT clipped inside the recursion: hard-clipping
+        # biases the covariance.  SOC is clipped only when reported (see the
+        # ``soc`` property); OCV look-ups clip their argument internally.
         self.P = F @ self.P @ F.T + self.Q_cov
 
         # ---- Update -------------------------------------------------
-        ocv = float(self.ocv_curve.ocv(self.x[0], T_C=temperature_C))
+        # Pass current into the OCV call so the measurement model matches the
+        # plant when hysteresis is enabled (no-op when hysteresis_v == 0).
+        ocv = float(self.ocv_curve.ocv(self.x[0], current, T_C=temperature_C))
         h = ocv - self.x[1] - self.x[2] - p.R0 * current
         H = np.array([[float(self.ocv_curve.docv_dsoc(self.x[0])), -1.0, -1.0]])
         y_innov = voltage - h
         S = float((H @ self.P @ H.T).item() + self.R_cov)
         K = (self.P @ H.T / S).flatten()
         self.x = self.x + K * y_innov
-        self.x[0] = np.clip(self.x[0], 0.0, 1.0)
         self.P = (np.eye(3) - np.outer(K, H)) @ self.P
         return self.soc
 
@@ -184,15 +187,21 @@ class UKFEstimator:
         a1 = np.exp(-dt / max(p.tau1, 1e-9))
         a2 = np.exp(-dt / max(p.tau2, 1e-9))
         i = self.current_input
+        # SOC is not clipped inside the process model: clipping distorts the
+        # sigma-point spread and biases the UKF covariance.  It is clipped only
+        # when reported via the ``soc`` property.
         return np.array([
-            np.clip(x[0] - i * dt / (p.Q_nom_Ah * 3600.0), 0.0, 1.0),
+            x[0] - i * dt / (p.Q_nom_Ah * 3600.0),
             a1 * x[1] + (1 - a1) * p.R1 * i,
             a2 * x[2] + (1 - a2) * p.R2 * i,
         ])
 
     def _hx(self, x: np.ndarray) -> np.ndarray:
         p = self.params.at_temperature(self._temperature_C)
-        ocv_val = float(self.ocv.ocv(np.clip(x[0], 0.0, 1.0), T_C=self._temperature_C))
+        # OCVSOC.ocv clips its SOC argument internally; pass current so the
+        # measurement matches the plant when hysteresis is enabled.
+        ocv_val = float(self.ocv.ocv(x[0], self.current_input,
+                                     T_C=self._temperature_C))
         return np.array([ocv_val - x[1] - x[2] - p.R0 * self.current_input])
 
     def reset(self, soc0: float = 1.0):
@@ -263,6 +272,7 @@ class LSTMEstimator:
     def __init__(self, input_size: int = 3, hidden_size: int = 16, seed: int = 0):
         self.D, self.H = input_size, hidden_size
         rng = np.random.default_rng(seed)
+        self._rng = rng
         s = 1.0 / np.sqrt(hidden_size)
 
         # Concatenated weight: [W_x | W_h] for each gate (i, f, o, g).
@@ -393,7 +403,7 @@ class LSTMEstimator:
         n = X.shape[0]
         history = []
         for ep in range(epochs):
-            order = np.random.permutation(n)
+            order = self._rng.permutation(n)
             losses = []
             for k in order:
                 ys, cache = self._forward_seq(X[k])
@@ -406,8 +416,10 @@ class LSTMEstimator:
         return history
 
     def reset(self, *_, **__):
-        self._h = np.zeros(self.H)
-        self._c = np.zeros(self.H)
+        """No-op: inference runs over a whole sequence from a zero initial
+        hidden state, so there is nothing to clear between calls.  Accepts and
+        ignores arguments for interface parity with the other estimators."""
+        return None
 
     def predict(self, x_seq: np.ndarray) -> np.ndarray:
         if self._normalisers is None:
