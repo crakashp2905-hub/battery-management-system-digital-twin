@@ -117,13 +117,18 @@ class SwitchedCapacitorBalancer(Balancer):
         for i in range(pack.n_cells - 1):
             dv = v[i] - v[i + 1]
             i_avg = self.f_sw * self.C_sw * dv          # signed current
-            currents[i] += i_avg                        # leaves cell i
-            currents[i + 1] -= self.efficiency * i_avg  # arrives at i+1 (with loss)
+            if i_avg >= 0:
+                currents[i] += i_avg                        # leaves cell i
+                currents[i + 1] -= self.efficiency * i_avg  # arrives at i+1 (with loss)
+            else:
+                currents[i] += self.efficiency * i_avg      # arrives at cell i (with loss)
+                currents[i + 1] -= i_avg                    # leaves cell i+1
 
-        # Energy lost per dt = (1-η) · Σ |V·I| transferred
+        # Energy lost per dt = (1-η) · Σ |V_donor·I| transferred
         v_drop = np.abs(v[:-1] - v[1:])
         i_pair = self.f_sw * self.C_sw * v_drop
-        self.energy_loss_J += float((1 - self.efficiency) * np.sum(v[:-1] * i_pair) * dt)
+        v_donor = np.maximum(v[:-1], v[1:])
+        self.energy_loss_J += float((1 - self.efficiency) * np.sum(v_donor * i_pair) * dt)
         return currents
 
 

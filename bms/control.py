@@ -114,7 +114,7 @@ class BMSSupervisor:
         _props = get_chemistry_props(self.pack.cfg.chemistry)
         self._v_min_cell = float(_props["v_min"])
         self.passport = BatteryPassport(
-            nominal_capacity_Ah=float(self.pack.capacities_Ah.sum()),
+            nominal_capacity_Ah=float(np.mean(self.pack.capacities_Ah)),
             nominal_voltage_V=_props["nominal_voltage_V"] * self.pack.n_cells,
             chemistry=self.pack.cfg.chemistry,
         )
@@ -232,6 +232,11 @@ class BMSSupervisor:
                 and fault_label == FaultMode.THERMAL_RUNAWAY.value
                 and self.state != BMSState.SHUTDOWN):
             self.state = BMSState.SHUTDOWN
+        # Short circuit is an acute safety threat → trip contactor to FAULT immediately.
+        elif (fault_source == "rule"
+                and fault_label == FaultMode.SHORT_CIRCUIT.value
+                and self.state not in (BMSState.FAULT, BMSState.SHUTDOWN)):
+            self.state = BMSState.FAULT
         elif (self._alarm_streak >= self.config.consecutive_alarms_to_trip
                 and self.state not in (BMSState.FAULT, BMSState.SHUTDOWN)):
             self.state = BMSState.FAULT

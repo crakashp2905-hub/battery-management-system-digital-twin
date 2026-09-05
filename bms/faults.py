@@ -47,6 +47,7 @@ from sklearn.ensemble import RandomForestClassifier
 class FaultMode(str, Enum):
     NONE = "none"
     OVERCHARGE = "overcharge"
+    UNDERVOLTAGE = "undervoltage"
     SHORT_CIRCUIT = "short_circuit"
     THERMAL_RUNAWAY = "thermal_runaway"
     SENSOR_DROPOUT = "sensor_dropout"
@@ -74,6 +75,7 @@ class FaultInjector:
         from .chemistry import get_chemistry_props
         props = get_chemistry_props(chemistry)
         self.OVERCHARGE_V: float = props["v_overcharge"]
+        self.UNDERVOLTAGE_V: float = props["v_min"]
         self.THERMAL_RUNAWAY_T: float = props["T_runaway_C"]
 
     def add(self, spec: FaultSpec) -> None:
@@ -108,6 +110,8 @@ class FaultInjector:
                 continue
             if s.mode == FaultMode.SENSOR_DROPOUT:
                 out[s.cell_index] = 0.0
+            elif s.mode == FaultMode.UNDERVOLTAGE:
+                out[s.cell_index] = self.UNDERVOLTAGE_V - 0.1 * s.severity
             elif s.mode == FaultMode.SENSOR_BIAS:
                 tau = max(1, k - s.start_step + 1)
                 out[s.cell_index] += 0.0005 * tau * s.severity
@@ -231,6 +235,7 @@ class HybridFaultDetector:
         props = get_chemistry_props(chemistry)
         self._v_overcharge: float = props["v_overcharge"]
         self._v_dropout: float = props["v_dropout"]
+        self._v_undervoltage: float = props["v_min"]
         self._T_runaway_C: float = props["T_runaway_C"]
         # Per-cell current magnitude above which a short circuit is declared.
         self._i_short_circuit_A: float = float(i_short_circuit_A)
@@ -249,6 +254,8 @@ class HybridFaultDetector:
             return FaultMode.OVERCHARGE
         if (v_cells <= self._v_dropout).any():
             return FaultMode.SENSOR_DROPOUT
+        if (v_cells < self._v_undervoltage).any():
+            return FaultMode.UNDERVOLTAGE
         if (T_cells >= self._T_runaway_C).any():
             return FaultMode.THERMAL_RUNAWAY
         return FaultMode.NONE
