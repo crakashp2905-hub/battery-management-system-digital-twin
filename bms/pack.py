@@ -43,6 +43,10 @@ import numpy as np
 from .ecm import SecondOrderECM, ECMParameters
 from .ocv_soc import OCVSOC
 
+# ``np.trapezoid`` was added in NumPy 2.0; fall back to ``np.trapz`` on older
+# NumPy so the package works across the ``numpy>=1.24`` support range.
+_trapz = getattr(np, "trapezoid", getattr(np, "trapz", None))
+
 
 # ── Internal parallel-group class ───────────────────────────────────────
 class _ParallelGroup:
@@ -101,40 +105,63 @@ class _ParallelGroup:
             chemistry=p0.chemistry,
         )
 
+    # ── Shared-node solve ────────────────────────────────────────────
+    def _emf_and_conductance(self, ocv_curve: OCVSOC,
+                             temperature_C: float) -> tuple[np.ndarray, np.ndarray]:
+        """Per-cell open terminal EMF ``e_i = OCV_i − V_RC1_i − V_RC2_i`` [V]
+        and DC conductance ``g_i = 1/R0_i(T)`` [S]."""
+        e = np.array([
+            float(ocv_curve.ocv(c.soc, T_C=temperature_C)) - c.v_rc1 - c.v_rc2
+            for c in self.cells
+        ])
+        g = np.array([
+            1.0 / max(c.params.at_temperature(temperature_C).R0, 1e-9)
+            for c in self.cells
+        ])
+        return e, g
+
     # ── Terminal voltage ─────────────────────────────────────────────
     def terminal_voltage(self, ocv_curve: OCVSOC,
-                         temperature_C: float = 25.0) -> float:
-        """Mean terminal voltage of all parallel cells [V]."""
-        return float(np.mean([
-            ocv_curve.ocv(c.soc, T_C=temperature_C) - c.v_rc1 - c.v_rc2
-            for c in self.cells
-        ]))
+                         temperature_C: float = 25.0,
+                         group_current: float = 0.0) -> float:
+        """Common-node terminal voltage [V] of the parallel group.
+
+        Parallel cells physically share one terminal node, so their voltage is
+        found from the shared-node balance ``Σ (e_i − V)/R0_i = I_group`` rather
+        than by averaging independent per-cell voltages.  With
+        ``group_current = 0`` (the default, used for measurement) this reduces
+        to the conductance-weighted mean EMF, and for ``n_parallel = 1`` to
+        ``OCV − V_RC1 − V_RC2`` exactly.
+        """
+        e, g = self._emf_and_conductance(ocv_curve, temperature_C)
+        return float((np.dot(e, g) - group_current) / g.sum())
 
     # ── Time step ────────────────────────────────────────────────────
     def step(self, group_current: float, dt: float,
              temperature_C: float = 25.0) -> float:
         """Advance all parallel cells by dt.
 
-        The group current is split among cells in proportion to their
-        conductance (1/R0 at *temperature_C*).  Returns the mean terminal
-        voltage of all cells after the step.
+        The group current is distributed by solving the shared terminal node:
+        ``I_i = (e_i − V_common)/R0_i`` with
+        ``V_common = (Σ e_i/R0_i − I_group) / Σ 1/R0_i``.  Because this depends
+        on each cell's EMF, cells at different SOC exchange **circulating
+        currents** (``Σ I_i = I_group`` yet individual ``I_i ≠ 0`` even when
+        ``I_group = 0``) — which the previous pure-conductance split ignored.
+        Returns the post-step common-node terminal voltage.
         """
         n = self.n_parallel
         if n == 1:
             return self.cells[0].step(group_current, dt, temperature_C)
 
-        g = np.array([
-            1.0 / max(c.params.at_temperature(temperature_C).R0, 1e-9)
-            for c in self.cells
-        ])
-        fracs = g / g.sum()
-        cell_currents = fracs * group_current
+        ocv_curve = self.cells[0].ocv_curve
+        e, g = self._emf_and_conductance(ocv_curve, temperature_C)
+        v_common = (np.dot(e, g) - group_current) / g.sum()
+        cell_currents = (e - v_common) * g          # Σ = group_current (KCL)
 
-        voltages = np.array([
+        for c, I_c in zip(self.cells, cell_currents):
             c.step(float(I_c), dt, temperature_C)
-            for c, I_c in zip(self.cells, cell_currents)
-        ])
-        return float(voltages.mean())
+
+        return self.terminal_voltage(ocv_curve, temperature_C, group_current)
 
 
 # ── Pack configuration ──────────────────────────────────────────────────
@@ -362,7 +389,7 @@ class BatteryPack:
             soc_pts = np.linspace(0.0, float(g.soc), n_pts)
             ocv_pts = np.array([float(self.ocv_curve.ocv(s)) for s in soc_pts])
             cap_Ah = sum(c.params.Q_nom_Ah for c in g.cells)
-            total_Wh += float(np.trapezoid(ocv_pts, soc_pts)) * cap_Ah
+            total_Wh += float(_trapz(ocv_pts, soc_pts)) * cap_Ah
         return total_Wh
 
     def __repr__(self) -> str:

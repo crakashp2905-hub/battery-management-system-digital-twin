@@ -76,7 +76,8 @@ _HOVER_BG    = "#1E293B"
 
 _FAULT_COLORS = {
     "overcharge":      _P["rose"],
-    "short_circuit":   _P["amber"],
+    "undervoltage":    _P["amber"],
+    "short_circuit":   _P["rose"],
     "thermal_runaway": _P["violet"],
     "sensor_dropout":  _P["indigo"],
     "sensor_bias":     _P["pink"],
@@ -123,7 +124,8 @@ def trained_detector(chemistry: str = "nmc") -> HybridFaultDetector:
 
 
 def build_supervisor(n_cells: int, n_parallel: int, seed: int,
-                     chemistry: str) -> BMSSupervisor:
+                     chemistry: str,
+                     injector: FaultInjector | None = None) -> BMSSupervisor:
     props = get_chemistry_props(chemistry)
     cap_Ah = props["default_capacity_Ah"]
     pack = BatteryPack(PackConfig(
@@ -135,7 +137,8 @@ def build_supervisor(n_cells: int, n_parallel: int, seed: int,
     thermal = ThermalModel(n_cells=n_cells, params=ThermalParameters())
     detector = trained_detector(chemistry)
     return BMSSupervisor(pack, thermal, detector,
-                         config=SupervisorConfig(T_setpoint_C=35.0))
+                         config=SupervisorConfig(T_setpoint_C=35.0),
+                         injector=injector)
 
 
 # ── Page setup ───────────────────────────────────────────────────────────────
@@ -404,7 +407,7 @@ with st.sidebar:
 
     st.header("Fault injection")
     fault_mode = st.selectbox(
-        "Mode", ["none", "overcharge", "short_circuit", "thermal_runaway",
+        "Mode", ["none", "overcharge", "undervoltage", "short_circuit", "thermal_runaway",
                  "sensor_dropout", "sensor_bias"], index=0)
     fault_cell = st.number_input("Cell group index", min_value=0,
                                   max_value=int(n_cells) - 1, value=0)
@@ -498,14 +501,15 @@ def run_sim(n_cells: int, n_parallel: int, chemistry: str, seed: int,
             fault_mode: str, fault_cell: int,
             fault_start: int, fault_end: int, fault_severity: float,
             show_ekf: bool) -> dict:
-    sup = build_supervisor(n_cells=int(n_cells), n_parallel=int(n_parallel),
-                           seed=int(seed), chemistry=chemistry)
     inj = FaultInjector(chemistry=chemistry)
     if fault_mode != "none":
         inj.add(FaultSpec(mode=FaultMode(fault_mode),
                           start_step=fault_start, end_step=fault_end,
                           cell_index=int(fault_cell),
                           severity=float(fault_severity)))
+
+    sup = build_supervisor(n_cells=int(n_cells), n_parallel=int(n_parallel),
+                           seed=int(seed), chemistry=chemistry, injector=inj)
 
     props = get_chemistry_props(chemistry)
     cap_Ah = props["default_capacity_Ah"]
@@ -566,22 +570,12 @@ def run_sim(n_cells: int, n_parallel: int, chemistry: str, seed: int,
 
         if p_load is not None:
             req_power = float(p_load[k])
-            cell_extra = inj.apply_to_currents(np.zeros(sup.pack.n_cells), k)
-            if cell_extra.any():
-                sup.pack.step(0.0, 1.0, balancing_currents=cell_extra,
-                               cell_temperatures_C=sup.thermal.T)
             out = sup.step(requested_power_W=req_power, dt=1.0, k=k)
             i_log[k] = out["cmd_current"]
         else:
             req_current = float(i_load[k])
-            cell_currents = np.full(sup.pack.n_cells, req_current)
-            cell_currents = inj.apply_to_currents(cell_currents, k)
-            extra = cell_currents - req_current
-            sup.pack.step(req_current, 1.0,
-                          balancing_currents=extra,
-                          cell_temperatures_C=sup.thermal.T)
             out = sup.step(req_current, 1.0, k=k)
-            i_log[k] = req_current
+            i_log[k] = out["cmd_current"]
 
         soc_log[k] = out["soc"]
         v_log[k] = out["v_cells"]

@@ -7,14 +7,15 @@ electrochemical diagnostics, and a physics-based EV range predictor into one rep
 fully-tested framework — every module is independently usable and exercised by unit tests.
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.4.0-blue">
-  <img alt="tests" src="https://img.shields.io/badge/tests-155%20passing-brightgreen">
+  <img alt="version" src="https://img.shields.io/badge/version-0.5.0-blue">
+  <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
+  <img alt="tests" src="https://img.shields.io/badge/tests-169%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 155/155 unit tests pass • 16 library modules • 7 chemistries • 12 figures •
+> **Status.** ✅ 169/169 unit tests pass • 16 library modules • 7 chemistries • 12 figures •
 > 5-tab Streamlit dashboard + EV range predictor • executed demo notebook.
 
 ---
@@ -107,7 +108,7 @@ bms_digital_twin/
 ├── scripts/
 │   └── build_notebook.py      # Reproducible notebook generator
 ├── tests/
-│   └── test_bms.py            # 155 unit tests
+│   └── test_bms.py            # 164 unit tests
 ├── figures/                   # 12 PNGs produced by the notebook
 ├── docs/
 │   └── architecture.md        # Layered-design notes & invariants
@@ -143,19 +144,18 @@ bms_digital_twin/
 
 ## Installation
 
-Tested on Python 3.10–3.13.
+Tested on Python 3.10–3.13. The package is pip-installable:
 
 ```bash
-pip install -r requirements.txt
+pip install -e .                  # core library only
+pip install -e ".[app,notebook]"  # + Streamlit dashboard and notebook tooling
+pip install -e ".[dev]"           # + pytest and ruff (for contributors)
 ```
 
-`requirements.txt` is intentionally minimal:
-
-```
-numpy>=1.24        scipy>=1.10        pandas>=2.0        matplotlib>=3.7
-scikit-learn>=1.3  filterpy>=1.4.5    nbformat>=5.9      jupyter>=1.0
-streamlit>=1.30    plotly>=5.18       pytest>=7.4
-```
+Core runtime dependencies are intentionally minimal (numpy, scipy, pandas,
+scikit-learn, filterpy); the `app` and `notebook` extras add streamlit/plotly
+and jupyter/matplotlib respectively. For just the notebook/dashboard workflow,
+`pip install -r requirements.txt` still works.
 
 **Why no PyTorch / TensorFlow?** The LSTM SOC estimator is implemented from scratch in NumPy —
 including BPTT and Adam — to keep dependencies minimal and to make the recurrent gradient flow
@@ -168,7 +168,7 @@ legible for review. Swapping it for `torch.nn.LSTM` is a ~30-line change.
 ### 1. Run the test suite
 
 ```bash
-pytest tests/ -q          # 155 tests
+pytest tests/ -q          # 164 tests
 ```
 
 ### 2. Walk through the demo notebook
@@ -355,7 +355,7 @@ Every randomness source is seeded — `PackConfig.seed`, `np.random.default_rng(
 ## Testing
 
 ```bash
-pytest tests/ -q          # 155 tests, ~30 s
+pytest tests/ -q          # 164 tests, ~35 s
 ```
 
 The suite covers OCV/ECM correctness and parameter recovery, pack scatter and series/parallel

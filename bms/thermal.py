@@ -97,15 +97,23 @@ class ThermalModel:
         h_eff = p.h_min_W_per_K + cooling_duty * (p.h_max_W_per_K - p.h_min_W_per_K)
 
         m_cp = (p.mass_g * p.cp_J_per_gK)            # J/K per cell
+        heat_W = np.asarray(heat_W, float)
 
-        # Mirror BC: T_{-1} = T_0, T_N = T_{N-1}
-        T_left = np.concatenate([[self.T[0]], self.T[:-1]])
-        T_right = np.concatenate([self.T[1:], [self.T[-1]]])
-        cond = p.kappa_W_per_K * (T_left - 2 * self.T + T_right)
-        conv = -h_eff * (self.T - p.T_amb_C)
+        # Explicit-Euler diffusion is only stable for dt below the CFL limit
+        # dt_stable = m_cp / (2κ + h_eff).  Sub-step internally so the public
+        # API is unconditionally stable for any dt the caller passes.  For the
+        # usual dt = 1 s these constants give n_sub = 1 (identical to before).
+        dt_stable = m_cp / (2.0 * p.kappa_W_per_K + h_eff + 1e-12)
+        n_sub = max(1, int(np.ceil(dt / (0.5 * dt_stable))))
+        dt_sub = dt / n_sub
 
-        dT = (heat_W + cond + conv) * dt / m_cp
-        self.T = self.T + dT
+        for _ in range(n_sub):
+            # Mirror BC: T_{-1} = T_0, T_N = T_{N-1}
+            T_left = np.concatenate([[self.T[0]], self.T[:-1]])
+            T_right = np.concatenate([self.T[1:], [self.T[-1]]])
+            cond = p.kappa_W_per_K * (T_left - 2 * self.T + T_right)
+            conv = -h_eff * (self.T - p.T_amb_C)
+            self.T = self.T + (heat_W + cond + conv) * dt_sub / m_cp
         return self.T
 
     # ------------------------------------------------------------------
@@ -116,10 +124,24 @@ class ThermalModel:
     @staticmethod
     def heat_generation(currents: np.ndarray, R0: np.ndarray,
                         v_terminal: np.ndarray, ocv: np.ndarray) -> np.ndarray:
-        """Per-cell heat production: ohmic + over-potential."""
-        ohmic = currents ** 2 * R0
-        polarisation = currents * np.maximum(ocv - v_terminal, 0.0)
-        return ohmic + polarisation
+        """Per-cell irreversible heat production [W].
+
+        The total irreversible dissipation of an RC ECM cell is current times
+        total overpotential::
+
+            Q = |I · (OCV - V_terminal)|
+              = I²·R0 + I·(V_RC1 + V_RC2)     since  OCV - V_t = V_RC1+V_RC2+R0·I
+
+        This single expression is correct for **both** charge and discharge and
+        already contains the ohmic I²R0 term, so it must not be added again.
+        (The previous ``I²R0 + I·max(OCV-V_t, 0)`` double-counted R0 on
+        discharge and dropped all polarisation heat on charge.)  ``R0`` is
+        retained in the signature for backward compatibility and used as a
+        floor so heat never falls below the always-dissipative ohmic loss.
+        """
+        currents = np.asarray(currents, float)
+        q = np.abs(currents * (ocv - v_terminal))
+        return np.maximum(q, currents ** 2 * np.asarray(R0, float))
 
 
 # ----------------------------------------------------------------------

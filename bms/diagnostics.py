@@ -103,14 +103,17 @@ def compute_crate_map(
     temp_points: int = 17,
     T_min_C: float = -20.0,
     T_max_C: float = 60.0,
+    continuous: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute maximum discharge C-rate on a SOC × temperature grid.
 
     At each (SOC, T) node the maximum discharge current limited by the
     terminal-voltage constraint V_t ≥ v_min is:
 
-        I_max = (OCV(SOC, T) − v_min) / R0_eff(T)
+        I_max = (OCV(SOC, T) − v_min) / R_eff(T)
 
+    where R_eff is R0 for instantaneous pulse capability (continuous=False) or
+    R0 + R1 + R2 for continuous steady-state capability (continuous=True).
     Then C-rate = I_max / Q_nom.
 
     Parameters
@@ -125,6 +128,9 @@ def compute_crate_map(
         Grid resolution along the temperature axis.
     T_min_C, T_max_C : float
         Temperature range for the map [°C].
+    continuous : bool
+        If True, uses steady-state DC resistance (R0 + R1 + R2). If False
+        (default), uses instantaneous ohmic resistance R0.
 
     Returns
     -------
@@ -149,7 +155,8 @@ def compute_crate_map(
         for j, T in enumerate(T_grid):
             p_T = params.at_temperature(T)
             ocv = float(ocv_curve.ocv(float(soc), T_C=T))
-            i_max_A = max(0.0, (ocv - v_min) / max(p_T.R0, 1e-9))
+            r_eff = (p_T.R0 + p_T.R1 + p_T.R2) if continuous else p_T.R0
+            i_max_A = max(0.0, (ocv - v_min) / max(r_eff, 1e-9))
             crate_map[i, j] = i_max_A / max(params.Q_nom_Ah, 1e-9)
 
     return soc_grid, T_grid, crate_map
