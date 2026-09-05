@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-09-05
+
+### Fixed
+- **OCV hysteresis direction** — positive current is discharge throughout the
+  model, so a non-zero hysteresis now lowers the discharge branch and raises
+  the charge branch as physical cell measurements require.
+
+### Added
+- **State of Power** — `StateOfPower` provides conservative 2 s, 10 s, and
+  30 s traction and regenerative-braking limits from terminal voltage,
+  present current, temperature-adjusted 2-RC impedance, current caps, and a
+  thermal derating envelope.
+- **Classic CAN telemetry** — `BMSCanBus` broadcasts fixed 8-byte, 11-bit CAN
+  2.0B status, cell-extrema, thermal, and multi-horizon SOP frames, with an
+  engineering-unit parser compatible with Intel/little-endian DBC signals.
+- **Pre-charge sequencing** — `BMSSupervisor` can now model an HV contactor
+  open → pre-charge → closed sequence, gate current until the measured DC link
+  reaches 95% of pack voltage, and fail safely on timeout.
+- Seven focused regression tests for hysteresis, SOP, CAN telemetry, and
+  pre-charge sequencing (**176** total).
+
 ## [0.5.0] - 2026-09-05
 
 ### Fixed

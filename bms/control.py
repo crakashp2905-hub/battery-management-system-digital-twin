@@ -54,10 +54,72 @@ from .thermal import PredictiveCoolingController, ThermalModel
 
 class BMSState(str, Enum):
     IDLE = "idle"
+    PRECHARGE = "precharge"
     OPERATING = "operating"
     BALANCING = "balancing"
     FAULT = "fault"
     SHUTDOWN = "shutdown"
+
+
+class ContactorState(str, Enum):
+    """Physical high-voltage contactor sequence state."""
+
+    OPEN = "open"
+    PRECHARGING = "precharging"
+    CLOSED = "closed"
+    FAULT = "fault"
+
+
+@dataclass
+class PrechargeContactorSequencer:
+    """Safely close an HV contactor after the DC-link capacitor is charged.
+
+    Call :meth:`start` to close the pre-charge relay.  Feed the measured
+    DC-link voltage to :meth:`update`; the main contactor closes only when
+    that voltage reaches ``target_ratio`` of pack voltage before timeout.
+    """
+
+    target_ratio: float = 0.95
+    timeout_s: float = 5.0
+    min_pack_voltage_V: float = 1.0
+    state: ContactorState = ContactorState.CLOSED
+    elapsed_s: float = 0.0
+
+    @property
+    def is_closed(self) -> bool:
+        return self.state == ContactorState.CLOSED
+
+    def open(self) -> None:
+        self.state = ContactorState.OPEN
+        self.elapsed_s = 0.0
+
+    def start(self) -> bool:
+        """Begin pre-charge from an open contactor.  Returns success."""
+        if self.state == ContactorState.FAULT:
+            return False
+        self.state = ContactorState.PRECHARGING
+        self.elapsed_s = 0.0
+        return True
+
+    def update(self, pack_voltage_V: float, dc_link_voltage_V: float | None,
+               dt: float) -> ContactorState:
+        """Advance the sequence using the measured DC-link voltage."""
+        if self.state != ContactorState.PRECHARGING:
+            return self.state
+        self.elapsed_s += max(0.0, float(dt))
+        if pack_voltage_V < self.min_pack_voltage_V:
+            self.state = ContactorState.FAULT
+        elif (dc_link_voltage_V is not None
+              and dc_link_voltage_V >= self.target_ratio * pack_voltage_V):
+            self.state = ContactorState.CLOSED
+        elif self.elapsed_s >= self.timeout_s:
+            self.state = ContactorState.FAULT
+        return self.state
+
+    def reset(self) -> None:
+        """Clear a pre-charge fault; an explicit new start is still needed."""
+        self.state = ContactorState.OPEN
+        self.elapsed_s = 0.0
 
 
 @dataclass
@@ -80,6 +142,8 @@ class SupervisorConfig:
     cooling_ki: float = 0.005
     cooling_kd: float = 0.4
     cooling_ff_gain: float = 0.02
+    precharge_target_ratio: float = 0.95
+    precharge_timeout_s: float = 5.0
 
 
 @dataclass
@@ -108,6 +172,13 @@ class BMSSupervisor:
         self._last_T_cells = self.thermal.T.copy()
         self._last_cell_currents = np.zeros(self.pack.n_cells)
         self._fault_log: list[dict] = []
+        # Existing simulations represent an already connected battery.  The
+        # sequence is therefore initially closed; callers explicitly open and
+        # start it when modelling vehicle key-on/pre-charge behaviour.
+        self.contactor = PrechargeContactorSequencer(
+            target_ratio=self.config.precharge_target_ratio,
+            timeout_s=self.config.precharge_timeout_s,
+        )
 
         # Battery Passport — initialised from chemistry props
         from .chemistry import get_chemistry_props
@@ -183,7 +254,8 @@ class BMSSupervisor:
     # ------------------------------------------------------------------
     def step(self, requested_pack_current_A: float = 0.0, dt: float = 1.0,
              k: int = 0,
-             requested_power_W: float | None = None) -> dict:
+             requested_power_W: float | None = None,
+             dc_link_voltage_V: float | None = None) -> dict:
         """One control cycle.
 
         Parameters
@@ -227,6 +299,21 @@ class BMSSupervisor:
         # ---- 1. Fault evaluation -------------------------------------
         fault_label, fault_source = self._evaluate_faults(k, dt)
 
+        # Pre-charge gates all current until the DC link is close enough to
+        # pack voltage to close the main contactor.  A timeout is handled as a
+        # fault, never by force-closing the contactor.
+        precharge_gating = False
+        if self.contactor.state == ContactorState.PRECHARGING:
+            self.contactor.update(self.pack.pack_voltage(), dc_link_voltage_V, dt)
+            if self.contactor.state == ContactorState.FAULT:
+                self.state = BMSState.FAULT
+            elif not self.contactor.is_closed:
+                self.state = BMSState.PRECHARGE
+                requested_pack_current_A = 0.0
+                precharge_gating = True
+        elif self.contactor.state in (ContactorState.OPEN, ContactorState.FAULT):
+            requested_pack_current_A = 0.0
+
         # Thermal runaway is critical → latch to terminal SHUTDOWN at once.
         if (fault_source == "rule"
                 and fault_label == FaultMode.THERMAL_RUNAWAY.value
@@ -247,8 +334,14 @@ class BMSSupervisor:
         derated = False
 
         if self.state in (BMSState.FAULT, BMSState.SHUTDOWN):
+            if self.contactor.state != ContactorState.FAULT:
+                self.contactor.open()
             cmd_current = 0.0
             cooling_duty = 1.0
+            balancer = None
+        elif precharge_gating:
+            self.state = BMSState.PRECHARGE
+            cmd_current = 0.0
             balancer = None
         else:
             if abs(requested_pack_current_A) > 1e-3:
@@ -332,6 +425,8 @@ class BMSSupervisor:
             "power_W": power_W,
             "peak_power_W": peak_power_W,
             "soe_Wh": soe_Wh,
+            "contactor_state": self.contactor.state.value,
+            "precharge_elapsed_s": self.contactor.elapsed_s,
         }
 
     # ------------------------------------------------------------------
@@ -352,5 +447,28 @@ class BMSSupervisor:
         if self.state == BMSState.FAULT:
             self.state = BMSState.IDLE
             self._alarm_streak = 0
+            if self.contactor.state == ContactorState.FAULT:
+                self.contactor.reset()
             return True
         return False
+
+    # ------------------------------------------------------------------
+    def open_contactors(self) -> None:
+        """Open the HV contactors, for example at vehicle key-off."""
+        self.contactor.open()
+        if self.state not in (BMSState.FAULT, BMSState.SHUTDOWN):
+            self.state = BMSState.IDLE
+
+    def start_precharge(self) -> bool:
+        """Start a measured DC-link pre-charge sequence.
+
+        While pre-charging, :meth:`step` requires no special mode; pass the
+        latest ``dc_link_voltage_V`` and it will suppress pack current until
+        the main contactor is safe to close.
+        """
+        if self.state == BMSState.SHUTDOWN:
+            return False
+        started = self.contactor.start()
+        if started:
+            self.state = BMSState.PRECHARGE
+        return started

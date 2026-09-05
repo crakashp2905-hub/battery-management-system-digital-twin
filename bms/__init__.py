@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 from .chemistry import CellChemistry, get_chemistry_props
 from .ocv_soc import OCVSOC
@@ -54,7 +54,10 @@ from .faults import (
     extract_features,
 )
 from .fmea import build_fmea_table, estimate_rul, estimate_rul_with_resistance
-from .control import BMSSupervisor, BMSState, SupervisorConfig
+from .control import (BMSSupervisor, BMSState, SupervisorConfig, ContactorState,
+                      PrechargeContactorSequencer)
+from .sop import SOPConfig, SOPLimit, StateOfPower
+from .can import CANFrame, BMSCanBus
 from .data import (
     generate_load_profile,
     generate_power_profile,
@@ -85,7 +88,9 @@ __all__ = [
     "FaultMode", "FaultSpec", "FaultInjector", "HybridFaultDetector",
     "RollingFeatureBuffer", "extract_features",
     "build_fmea_table", "estimate_rul", "estimate_rul_with_resistance",
-    "BMSSupervisor", "BMSState", "SupervisorConfig",
+    "BMSSupervisor", "BMSState", "SupervisorConfig", "ContactorState",
+    "PrechargeContactorSequencer", "SOPConfig", "SOPLimit", "StateOfPower",
+    "CANFrame", "BMSCanBus",
     "generate_load_profile", "generate_power_profile",
     "generate_cccv_profile",
     "load_nasa_like_dataset", "generate_aging_profile",

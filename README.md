@@ -7,15 +7,15 @@ electrochemical diagnostics, and a physics-based EV range predictor into one rep
 fully-tested framework — every module is independently usable and exercised by unit tests.
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.5.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-0.6.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
-  <img alt="tests" src="https://img.shields.io/badge/tests-169%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-176%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 169/169 unit tests pass • 16 library modules • 7 chemistries • 12 figures •
+> **Status.** ✅ 176/176 unit tests pass • 18 library modules • 7 chemistries • 12 figures •
 > 5-tab Streamlit dashboard + EV range predictor • executed demo notebook.
 
 ---
@@ -50,6 +50,11 @@ fully-tested framework — every module is independently usable and exercised by
   Random-Forest ML layer (advisory), across five failure modes.
 - **Intelligent supervisor** — a state machine that gates faults, dynamically selects a
   balancing strategy, drives predictive cooling, and supports both current- and power-mode loads.
+- **State of Power + CAN telemetry** — multi-horizon 2 s / 10 s / 30 s traction and
+  regen limits, plus DBC-compatible classic-CAN broadcast frames for pack, cell, thermal,
+  and SOP telemetry.
+- **HV pre-charge sequencing** — open → pre-charge → closed contactor control gates
+  current until the measured DC link reaches the configured safe voltage ratio.
 - **Lifetime accounting** — a battery passport tracking equivalent full cycles, depth-weighted
   cycles, round-trip efficiency, and energy throughput.
 - **Electrochemical diagnostics** — DVA/ICA aging fingerprints, simulated EIS (Nyquist), and a

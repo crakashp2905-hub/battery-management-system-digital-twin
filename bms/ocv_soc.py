@@ -104,7 +104,11 @@ class OCVSOC:
         soc = np.clip(np.asarray(soc, float), 0.0, 1.0)
         v = self._ocv_of_soc(soc)
         if self.hysteresis_v:
-            v = v + self.hysteresis_v * np.sign(np.asarray(current, float))
+            # Positive current denotes discharge throughout the package.  A
+            # relaxed cell sits at a higher voltage on the charge branch and
+            # a lower voltage on the discharge branch, so the sign is the
+            # inverse of the current convention used by the ECM.
+            v = v - self.hysteresis_v * np.sign(np.asarray(current, float))
         v = v + self._temp_coeff * (T_C - _T_REF_C)
         return v
 

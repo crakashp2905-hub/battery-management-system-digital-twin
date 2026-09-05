@@ -63,6 +63,13 @@ class TestOCVSOC:
         slopes = oc.docv_dsoc(np.linspace(0, 1, 50))
         assert np.all(slopes >= -1e-6)
 
+    def test_hysteresis_charge_branch_is_above_discharge_branch(self):
+        oc = bms.OCVSOC(hysteresis_v=0.012)
+        v_charge = float(oc.ocv(0.6, current=-2.0))
+        v_discharge = float(oc.ocv(0.6, current=2.0))
+        assert v_charge > v_discharge
+        assert v_charge - v_discharge == pytest.approx(0.024)
+
 
 # ----------------------------------------------------------------------
 # 2. ECM
@@ -1476,3 +1483,89 @@ class TestFixes:
         # Continuous C-rate includes R1 + R2, so it must be strictly lower than pulse C-rate
         valid = (cmap_pulse > 0.0)
         assert np.all(cmap_cont[valid] < cmap_pulse[valid])
+
+
+# ----------------------------------------------------------------------
+# 13. State of Power
+# ----------------------------------------------------------------------
+class TestStateOfPower:
+    @staticmethod
+    def _pack() -> bms.BatteryPack:
+        return bms.BatteryPack(bms.PackConfig(n_cells=4, seed=11))
+
+    def test_multi_horizon_traction_limit_decreases_with_duration(self):
+        pack = self._pack()
+        sop = bms.StateOfPower(bms.SOPConfig(
+            max_discharge_current_A=1_000.0, max_charge_current_A=1_000.0,
+        ))
+        limits = sop.calculate(pack)
+        assert set(limits) == {2.0, 10.0, 30.0}
+        assert limits[2.0].traction_current_A > limits[30.0].traction_current_A > 0.0
+        assert limits[2.0].regen_power_W > 0.0
+
+    def test_temperature_derating_caps_both_current_directions(self):
+        pack = self._pack()
+        sop = bms.StateOfPower(bms.SOPConfig(
+            max_discharge_current_A=100.0, max_charge_current_A=80.0,
+            temperature_warning_C=40.0, temperature_limit_C=60.0,
+        ))
+        limits = sop.calculate(pack, temperatures_C=np.full(pack.n_cells, 50.0))
+        limit = limits[10.0]
+        assert limit.temperature_derate == pytest.approx(0.5)
+        assert limit.traction_current_A <= 50.0
+        assert limit.regen_current_A <= 40.0
+
+
+# ----------------------------------------------------------------------
+# 14. CAN telemetry
+# ----------------------------------------------------------------------
+class TestCanTelemetry:
+    def test_can_broadcast_is_classic_8_byte_and_round_trips(self):
+        pack = bms.BatteryPack(bms.PackConfig(n_cells=4, seed=2))
+        thermal = bms.ThermalModel(n_cells=4)
+        sup = bms.BMSSupervisor(pack, thermal, bms.HybridFaultDetector())
+        result = sup.step(2.0, 1.0)
+        sop = bms.StateOfPower().calculate(
+            pack, result["T_cells"], result["cmd_current"], result["v_cells"],
+        )
+        bus = bms.BMSCanBus()
+        frames = bus.broadcast(result, sop)
+        assert len(frames) == 6
+        assert all(len(frame.data) == 8 and not frame.is_extended_id for frame in frames)
+        parsed = bus.parse_all(frames)
+        status = parsed[0]
+        assert status["message"] == "BMS_Status"
+        assert status["pack_voltage_V"] == pytest.approx(result["v_pack"], abs=0.01)
+        assert status["pack_current_A"] == pytest.approx(result["cmd_current"], abs=0.1)
+        assert {item["horizon_s"] for item in parsed if "horizon_s" in item} == {
+            2.0, 10.0, 30.0,
+        }
+
+    def test_can_frame_rejects_non_classic_payload_length(self):
+        with pytest.raises(ValueError, match="exactly 8 bytes"):
+            bms.CANFrame(0x180, b"\x00" * 7)
+
+
+# ----------------------------------------------------------------------
+# 15. Pre-charge contactors
+# ----------------------------------------------------------------------
+class TestPrechargeContactors:
+    def test_precharge_blocks_current_until_dc_link_is_charged(self):
+        pack = bms.BatteryPack(bms.PackConfig(n_cells=4, seed=4))
+        sup = bms.BMSSupervisor(pack, bms.ThermalModel(n_cells=4),
+                                bms.HybridFaultDetector())
+        sup.open_contactors()
+        assert sup.start_precharge()
+        first = sup.step(10.0, 1.0, dc_link_voltage_V=0.0)
+        assert first["state"] == "precharge"
+        assert first["cmd_current"] == 0.0
+        closed = sup.step(10.0, 1.0, dc_link_voltage_V=pack.pack_voltage())
+        assert closed["contactor_state"] == "closed"
+        assert closed["cmd_current"] > 0.0
+
+    def test_precharge_timeout_faults_without_closing_main_contactor(self):
+        seq = bms.PrechargeContactorSequencer(timeout_s=2.0)
+        seq.open()
+        assert seq.start()
+        assert seq.update(400.0, 0.0, 1.0) == bms.ContactorState.PRECHARGING
+        assert seq.update(400.0, 0.0, 1.0) == bms.ContactorState.FAULT
