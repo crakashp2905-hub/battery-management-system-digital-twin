@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 from .chemistry import CellChemistry, get_chemistry_props
 from .ocv_soc import OCVSOC

@@ -1569,3 +1569,35 @@ class TestPrechargeContactors:
         assert seq.start()
         assert seq.update(400.0, 0.0, 1.0) == bms.ContactorState.PRECHARGING
         assert seq.update(400.0, 0.0, 1.0) == bms.ContactorState.FAULT
+
+
+# ----------------------------------------------------------------------
+# Round-2 review fixes
+# ----------------------------------------------------------------------
+class TestRound2Fixes:
+    def test_thermal_runaway_injector_trips_supervisor(self):
+        det = bms.HybridFaultDetector()
+        pack = bms.BatteryPack(bms.PackConfig(n_cells=4, seed=7))
+        thermal = bms.ThermalModel(n_cells=4)
+        inj = bms.FaultInjector([bms.FaultSpec(bms.FaultMode.THERMAL_RUNAWAY,
+                                               start_step=0, cell_index=2)])
+        sup = bms.BMSSupervisor(pack, thermal, det, injector=inj)
+        for k in range(3):
+            sup.step(0.5, 1.0, k=k)
+        assert sup.state == bms.BMSState.SHUTDOWN
+        assert any(e["mode"] == "thermal_runaway" for e in sup.fault_log)
+
+    def test_supervisor_state_of_power_available(self):
+        pack = bms.BatteryPack(bms.PackConfig(n_cells=4, seed=8))
+        thermal = bms.ThermalModel(n_cells=4)
+        sup = bms.BMSSupervisor(pack, thermal, bms.HybridFaultDetector())
+        limits = sup.state_of_power()
+        assert set(limits) == {2.0, 10.0, 30.0}
+        assert all(v.traction_power_W >= 0.0 for v in limits.values())
+
+    def test_sop_default_voltages_track_pack_current(self):
+        pack = bms.BatteryPack(bms.PackConfig(n_cells=4, seed=9))
+        sop = bms.StateOfPower(bms.SOPConfig(max_discharge_current_A=1e4))
+        limits = sop.calculate(pack, pack_current_A=5.0)
+        assert limits[2.0].traction_current_A > 0.0
+        assert np.isfinite(limits[2.0].traction_power_W)

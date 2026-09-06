@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.1] - 2026-09-06
+
+### Fixed
+- **Thermal-runaway injection** — `FaultInjector.apply_to_temperatures` now
+  models a runaway as a measured temperature that starts just above the onset
+  threshold and climbs with dwell time, so injecting `THERMAL_RUNAWAY` from a
+  normal temperature actually trips the detector (previously inert unless the
+  cell was already above the threshold).
+- **SOP default voltages** — `StateOfPower.calculate` evaluates terminal
+  voltages at the supplied `pack_current_A` (loaded) instead of no-load when
+  `cell_voltages_V` is omitted. Unchanged at `pack_current_A == 0`.
+- Doc drift: documented the `UNDERVOLTAGE` mode, the `PRECHARGE` state, and the
+  `contactor_state` / `precharge_elapsed_s` step keys; removed dead
+  `typing.Callable` / `dataclasses.field` imports.
+
+### Added
+- `BMSSupervisor.state_of_power()` — SOP from the supervisor's own state.
+
 ## [0.6.0] - 2026-09-05
 
 ### Fixed

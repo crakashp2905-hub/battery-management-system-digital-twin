@@ -7,6 +7,8 @@ subsystem together and exposes a single ``step`` entry point.
 States
 ------
 * IDLE          — pack in low-load, balancing allowed if imbalance > th.
+* PRECHARGE     — HV contactor pre-charging; pack current is gated to zero
+                  until the DC-link reaches the target ratio of pack voltage.
 * OPERATING     — load on, SOC estimation + thermal regulation active.
 * BALANCING     — explicit balancing window (e.g. end-of-charge).
 * FAULT         — a detected fault triggers protective action: open
@@ -280,7 +282,8 @@ class BMSSupervisor:
             Keys: ``state``, ``fault_label``, ``fault_source``, ``v_cells``,
             ``v_pack``, ``soc``, ``T_cells``, ``cooling_duty``, ``balancer``,
             ``balancing_currents``, ``imbalance``, ``cmd_current``,
-            ``derated``, ``power_W``, ``peak_power_W``, ``soe_Wh``.
+            ``derated``, ``power_W``, ``peak_power_W``, ``soe_Wh``,
+            ``contactor_state``, ``precharge_elapsed_s``.
         """
         # ---- 0. Power → current conversion ---------------------------
         if requested_power_W is not None:
@@ -472,3 +475,16 @@ class BMSSupervisor:
         if started:
             self.state = BMSState.PRECHARGE
         return started
+
+    # ------------------------------------------------------------------
+    def state_of_power(self, config=None) -> dict:
+        """State-of-power limits for the present (rested) pack/thermal state.
+
+        Convenience wrapper around :class:`bms.sop.StateOfPower` using this
+        supervisor's own pack and measured temperatures, so SOP is reachable
+        without re-wiring the pack by hand.  Returns limits keyed by horizon
+        in seconds.  Pass a :class:`bms.sop.SOPConfig` to set horizons/limits.
+        """
+        from .sop import SOPConfig, StateOfPower
+        calc = StateOfPower(config or SOPConfig())
+        return calc.calculate(self.pack, temperatures_C=self.thermal.T)
