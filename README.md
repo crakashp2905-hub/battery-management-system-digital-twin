@@ -10,6 +10,7 @@ reproducible, fully-tested framework where every module is independently usable.
 <p>
   <img alt="version" src="https://img.shields.io/badge/version-0.13.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
+  <img alt="coverage" src="https://img.shields.io/badge/coverage-90%25-brightgreen">
   <img alt="tests" src="https://img.shields.io/badge/tests-236%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
@@ -304,8 +305,9 @@ Diagnostics, Fault Analysis) and **🚗 Range Predictor**.
 ## Testing
 
 ```bash
-pytest -q          # 236 tests, ~30 s
-ruff check .       # lint (library is clean)
+pytest -q                                  # 236 tests, ~30 s
+pytest --cov=bms --cov-fail-under=85       # coverage gate (CI enforces ≥ 85%; currently 90%)
+ruff check .                               # lint — blocking in CI
 ```
 
 Covers OCV/ECM correctness and parameter recovery, pack/parallel bookkeeping, thermal stability,
