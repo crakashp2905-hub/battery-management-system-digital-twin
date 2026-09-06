@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.14.0] - 2026-09-06
+
+### Added
+- **Safety-first diagnostic agent** (`bms/agent.py`) — the agent *decides*, never actuates:
+  - **Structured, validated actions** — `DiagnosisReport.proposed_actions` are
+    `ProposedAction`s derived **deterministically** from findings, so an LLM can
+    phrase the report but can never introduce or alter a control action. A prompt
+    injection in telemetry cannot produce a command.
+  - **`ActionGate`** — a deny-by-default approval boundary: actuating actions
+    (contactor / charger / cloud) and any `requires_approval` action are refused
+    unless an explicit approver returns True.
+  - **`redact_telemetry()`** — strips identifier fields (serial / VIN / customer /
+    location / device id …) before telemetry reaches a hosted LLM or cloud; the
+    LLM only ever sees the controlled summary (no raw identifiers).
+  - **`evaluation_scenarios()`** — reference fixtures (nominal / over-temperature /
+    gas-precursor / low-SoH / conflicting-signals) with expected severity + signals.
+- 6 tests incl. prompt-injection immunity, no-identifier-leak, deny-by-default,
+  and the eval scenarios (now **242**; coverage 90%).
+
 ## [0.13.1] - 2026-09-06
 
 ### Changed
