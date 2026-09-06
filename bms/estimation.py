@@ -209,3 +209,94 @@ def _make_joint_ekf(*, params=None, ocv_curve=None, capacity_Ah: float = 2.3, **
     from .soh_estimator import JointEKFSoH
     return JointEKFSoH(params=params or ECMParameters(Q_nom_Ah=capacity_Ah),
                        ocv_curve=ocv_curve or OCVSOC(), q_nominal_Ah=capacity_Ah)
+
+
+# ======================================================================
+# Framework adapters — plug a *trained* model in as a SoC estimator
+# ======================================================================
+def _default_features(voltage: float, current: float, dt: float,
+                      temperature_C: float, prev_soc: float) -> list[float]:
+    """Default per-step feature vector: [voltage, current, temperature, prev_soc]."""
+    return [voltage, current, temperature_C, prev_soc]
+
+
+class SklearnSocEstimator(FunctionSocEstimator):
+    """Wrap a fitted scikit-learn regressor as a recursive SoC estimator.
+
+    The model maps a per-step feature vector → SoC.  Default features are
+    ``[voltage, current, temperature, prev_soc]``; pass ``feature_fn`` to change.
+    """
+
+    def __init__(self, model, name: str = "sklearn", feature_fn=None):
+        ff = feature_fn or _default_features
+
+        def _fn(v, i, dt, T, s):
+            x = np.asarray(ff(v, i, dt, T, s), float).reshape(1, -1)
+            return float(np.ravel(model.predict(x))[0])
+
+        super().__init__(_fn, name=name)
+        self.model = model
+
+
+class OnnxSocEstimator(FunctionSocEstimator):
+    """Wrap an ONNX model (path or ``onnxruntime`` session) as a SoC estimator.
+
+    Truly framework-neutral: train in *any* framework, export to ``.onnx``, run
+    it here.  Requires ``onnxruntime`` (``pip install '.[onnx]'``).
+    """
+
+    def __init__(self, model, name: str = "onnx", input_name=None, feature_fn=None):
+        if hasattr(model, "run"):
+            session = model
+        else:
+            import onnxruntime as ort
+            session = ort.InferenceSession(str(model))
+        inp = input_name or session.get_inputs()[0].name
+        ff = feature_fn or _default_features
+
+        def _fn(v, i, dt, T, s):
+            x = np.asarray(ff(v, i, dt, T, s), np.float32).reshape(1, -1)
+            return float(np.ravel(session.run(None, {inp: x})[0])[0])
+
+        super().__init__(_fn, name=name)
+        self.session = session
+
+
+def _verify_sha256(path, expected: str) -> None:
+    import hashlib
+    with open(path, "rb") as fh:
+        actual = hashlib.sha256(fh.read()).hexdigest()
+    if actual.lower() != str(expected).lower():
+        raise ValueError(f"checksum mismatch for {path!r}: expected {expected}, got {actual}")
+
+
+def model_from_file(path, name=None, feature_fn=None, *, trust_pickle: bool = False,
+                    sha256: str | None = None) -> SocEstimator:
+    """Load a trained SoC model by file extension into a :class:`SocEstimator`.
+
+    ``.onnx`` → :class:`OnnxSocEstimator` (data-only, **safe**);
+    ``.joblib`` / ``.pkl`` → :class:`SklearnSocEstimator`.
+
+    Security
+    --------
+    ``.joblib`` / ``.pkl`` are Python **pickles and execute arbitrary code when
+    loaded** — only ever load artifacts you produced or fully trust.  This
+    function refuses to unpickle unless you pass ``trust_pickle=True`` explicitly,
+    and ``.onnx`` (no code execution) is the recommended deployment format.  Pass
+    ``sha256`` to verify the file's checksum against an allowlisted hash first.
+    """
+    p = str(path)
+    if sha256 is not None:
+        _verify_sha256(path, sha256)
+    if p.endswith(".onnx"):
+        return OnnxSocEstimator(p, name=name or "onnx", feature_fn=feature_fn)
+    if p.endswith((".joblib", ".pkl")):
+        if not trust_pickle:
+            raise ValueError(
+                f"{p!r} is a Python pickle and can execute arbitrary code on load. "
+                "Pass trust_pickle=True only for artifacts you trust (ideally with a "
+                "sha256= checksum), or export the model to ONNX (.onnx) instead.")
+        import joblib
+        return SklearnSocEstimator(joblib.load(p), name=name or "sklearn",
+                                   feature_fn=feature_fn)
+    raise ValueError(f"unsupported model file {p!r}; use .onnx, .joblib, or .pkl")

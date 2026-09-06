@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.13.0] - 2026-09-06
+
+### Added
+- **Framework-agnostic estimator adapters** (`bms/estimation.py`):
+  `SklearnSocEstimator`, `OnnxSocEstimator`, and `model_from_file()` — plug a
+  trained scikit-learn / PyTorch / ONNX (or any) model in as a first-class
+  `SocEstimator` (`.onnx` via the `[onnx]` extra; PyTorch works through
+  `FunctionSocEstimator`).
+- **LLM-agnostic narration** — `explain_state(..., llm=…)` and
+  `explain_charge(..., llm=…)` accept any `str -> str` callable (a Claude/OpenAI
+  SDK call, a LangChain model's `.invoke`, or a local model). The default stays
+  the deterministic, zero-cost, no-hallucination template.
+- **Optional LLM diagnostic-agent layer** (`bms/agent.py`, `[agent]` extra):
+  - `DiagnosticAgent.diagnose()` — deterministic reasoning over faults, thermal,
+    gas/pressure, and SoH → a severity + recommended action (or an LLM-written one).
+  - `twin_tools()` exposes the twin's read-only functions as agent tools
+    (`Tool` / `Finding` / `DiagnosisReport`).
+  - Lazy integration points — `to_langchain_tools()` (LangChain),
+    `build_langgraph_agent()` (a LangGraph diagnostic graph), and `traced()`
+    (Langfuse observability) — imported only when used, so the core keeps no hard
+    dependency on them. Default LLM provider is Claude; fully swappable.
+- 14 tests incl. pickle-load safety (opt-in `trust_pickle` + `sha256`); now **236**
+  (the ONNX round-trip skips when onnxruntime is absent).
+
 ## [0.12.0] - 2026-09-06
 
 ### Added

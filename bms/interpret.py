@@ -98,9 +98,25 @@ def soc_report(estimator, k: float = 1.0) -> str:
 
 
 # ======================================================================
-# Plain-language summaries
+# Plain-language summaries (optionally LLM-narrated, provider-agnostic)
 # ======================================================================
-def explain_state(result: dict, soh: float | None = None) -> str:
+def _narrate(facts: str, llm=None, subject: str = "battery status") -> str:
+    """Return the deterministic facts, or an LLM-written narration of them.
+
+    ``llm`` is any callable ``str -> str`` — a provider SDK call, a LangChain
+    model's ``.invoke``, or a local model — so the narration layer is
+    provider-agnostic.  Default (``llm=None``) keeps the deterministic,
+    zero-cost, no-hallucination text.
+    """
+    if llm is None:
+        return facts
+    prompt = ("You are a battery-management engineer. In two concise sentences, "
+              f"explain this {subject} to an operator and flag any concern. "
+              f"Facts: {facts}")
+    return str(llm(prompt)).strip()
+
+
+def explain_state(result: dict, soh: float | None = None, llm=None) -> str:
     """One-line plain-language summary of a :meth:`BMSSupervisor.step` result."""
     soc = float(np.mean(result["soc"])) * 100.0
     v = float(result["v_pack"])
@@ -122,10 +138,10 @@ def explain_state(result: dict, soh: float | None = None) -> str:
     contactor = result.get("contactor_state")
     if contactor:
         parts.append(f"Contactor {contactor}.")
-    return " ".join(parts)
+    return _narrate(" ".join(parts), llm, "battery state")
 
 
-def explain_charge(result) -> str:
+def explain_charge(result, llm=None) -> str:
     """One-line plain-language explanation of a :class:`bms.charging.ChargeResult`."""
     path = "DC" if str(result.method).startswith("dc") else "AC"
     text = (f"{result.method} ({path}, {result.c_rate:.1f}C): "
@@ -139,4 +155,4 @@ def explain_charge(result) -> str:
     else:
         text += "No plating — gentle on the cell. "
     text += f"Capacity fade this charge ≈ {result.capacity_fade_pct:.4f}%."
-    return text
+    return _narrate(text, llm, "charge session")

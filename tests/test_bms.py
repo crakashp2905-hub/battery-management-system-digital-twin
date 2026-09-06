@@ -2033,3 +2033,137 @@ class TestDatasets:
         nums, caps = bms.nasa_mat_to_capacity(str(p))
         assert nums.tolist() == [1.0, 2.0]
         assert np.allclose(caps, [1.85, 1.74])
+
+
+# ----------------------------------------------------------------------
+# Model adapters (bring any trained model) + LLM narration + agent
+# ----------------------------------------------------------------------
+class TestModelAdapters:
+    @staticmethod
+    def _fitted_linear():
+        from sklearn.linear_model import LinearRegression
+        d = bms.synthetic_drivecycle("nmc", duration_s=500, seed=1)
+        X = np.column_stack([d.voltage_V, d.current_A, d.temperature_C])
+        return LinearRegression().fit(X, d.soc_true), d
+
+    def test_sklearn_adapter_in_protocol_and_tracks(self):
+        model, d = self._fitted_linear()
+        est = bms.SklearnSocEstimator(model, feature_fn=lambda v, i, dt, T, s: [v, i, T])
+        assert isinstance(est, bms.RecursiveSocEstimator)
+        est.reset(float(d.soc_true[0]))
+        out = est.run(d.current_A, d.voltage_V, d.dt)
+        assert np.all((out >= 0.0) & (out <= 1.0))
+        assert np.sqrt(np.mean((out - d.soc_true) ** 2)) < 0.05
+
+    def test_model_from_file_sklearn(self, tmp_path):
+        import joblib
+        model, _ = self._fitted_linear()
+        p = tmp_path / "m.joblib"
+        joblib.dump(model, p)
+        est = bms.model_from_file(p, trust_pickle=True,
+                                  feature_fn=lambda v, i, dt, T, s: [v, i, T])
+        assert isinstance(est, bms.SklearnSocEstimator)
+        assert 0.0 <= est.update(1.0, 3.7, 1.0) <= 1.0
+
+    def test_pickle_load_requires_explicit_trust(self, tmp_path):
+        import joblib
+        model, _ = self._fitted_linear()
+        p = tmp_path / "m.joblib"
+        joblib.dump(model, p)
+        with pytest.raises(ValueError, match="arbitrary code"):
+            bms.model_from_file(p)                       # refused by default
+
+    def test_model_from_file_checksum(self, tmp_path):
+        import hashlib
+
+        import joblib
+        model, _ = self._fitted_linear()
+        p = tmp_path / "m.joblib"
+        joblib.dump(model, p)
+        good = hashlib.sha256(p.read_bytes()).hexdigest()
+        bms.model_from_file(p, trust_pickle=True, sha256=good)          # ok
+        with pytest.raises(ValueError, match="checksum mismatch"):
+            bms.model_from_file(p, trust_pickle=True, sha256="00" * 32)
+
+    def test_model_from_file_unsupported(self, tmp_path):
+        with pytest.raises(ValueError):
+            bms.model_from_file(tmp_path / "model.bin")
+
+    def test_onnx_adapter_roundtrip(self, tmp_path):
+        pytest.importorskip("onnxruntime")
+        skl2onnx = pytest.importorskip("skl2onnx")
+        from skl2onnx.common.data_types import FloatTensorType
+        model, d = self._fitted_linear()
+        onx = skl2onnx.to_onnx(model, initial_types=[("x", FloatTensorType([None, 3]))])
+        p = tmp_path / "m.onnx"
+        p.write_bytes(onx.SerializeToString())
+        est = bms.model_from_file(p, feature_fn=lambda v, i, dt, T, s: [v, i, T])
+        assert isinstance(est, bms.OnnxSocEstimator)
+        out = est.run(d.current_A[:50], d.voltage_V[:50], d.dt)
+        assert np.all((out >= 0.0) & (out <= 1.0))
+
+
+class TestLLMNarrationAndAgent:
+    def _result(self, fault=False):
+        sup = bms.BMSSupervisor(bms.BatteryPack(bms.PackConfig(n_cells=4, seed=1)),
+                                bms.ThermalModel(n_cells=4), bms.HybridFaultDetector())
+        r = sup.step(2.0, 1.0)
+        if fault:
+            r = dict(r, fault_label="thermal_runaway", fault_source="rule")
+        return r, sup
+
+    def test_explain_state_llm_hook(self):
+        r, _ = self._result()
+        assert bms.explain_state(r, llm=lambda p: "NARRATED") == "NARRATED"
+        assert "State:" in bms.explain_state(r)          # deterministic default
+
+    def test_explain_charge_llm_hook(self):
+        cr = bms.ChargingModel().simulate(
+            bms.ChargeProtocol(bms.ChargeMethod.DC_FAST, soc_start=0.2, soc_end=0.9),
+            pack_energy_kWh=60.0, q_nom_Ah=2.3, r0_ohm=0.025, v_nom=3.7)
+        assert bms.explain_charge(cr, llm=lambda p: "CHARGE NARRATION") == "CHARGE NARRATION"
+
+    def test_agent_nominal_and_fault(self):
+        r, _ = self._result()
+        rep = bms.DiagnosticAgent().diagnose(r)
+        assert rep.severity == "ok" and "normal" in rep.recommendation.lower()
+        rf, _ = self._result(fault=True)
+        repf = bms.DiagnosticAgent().diagnose(rf)
+        assert repf.severity == "critical" and "contactor" in repf.recommendation.lower()
+
+    def test_agent_gas_precursor_and_soh(self):
+        r, _ = self._result()
+        gas = bms.DiagnosticAgent().diagnose(r, mechanical_state=bms.CellMechanicalState(pressure_kPa=250.0))
+        assert gas.severity == "warning"
+        assert any(f.signal == "gas" for f in gas.findings)
+        aged = bms.DiagnosticAgent().diagnose(r, soh=0.7)
+        assert any(f.signal == "soh" for f in aged.findings)
+
+    def test_agent_llm_recommendation_and_report_dict(self):
+        rf, _ = self._result(fault=True)
+        rep = bms.DiagnosticAgent(llm=lambda p: "MOCK ACTION").diagnose(rf)
+        assert rep.recommendation == "MOCK ACTION"
+        assert set(rep.to_dict()) == {"severity", "summary", "recommendation", "findings"}
+
+    def test_twin_tools_read_only(self):
+        _, sup = self._result()
+        tools = bms.twin_tools(sup)
+        names = {t.name for t in tools}
+        assert {"state_of_power", "soh", "fault_log", "passport"} <= names
+        assert next(t for t in tools if t.name == "soh")() == pytest.approx(1.0)
+
+    def test_traced_is_noop_without_langfuse(self):
+        assert bms.traced("x")(lambda a, b: a + b)(2, 3) == 5
+
+    def test_langgraph_agent_builds(self):
+        pytest.importorskip("langgraph")
+        graph = bms.build_langgraph_agent(llm=None)
+        r, _ = self._result(fault=True)
+        out = graph.invoke({"result": r})
+        assert out["report"].severity == "critical"
+
+    def test_langchain_tools_convert(self):
+        pytest.importorskip("langchain_core")
+        _, sup = self._result()
+        lc = bms.to_langchain_tools(bms.twin_tools(sup))
+        assert len(lc) == 4

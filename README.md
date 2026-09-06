@@ -8,15 +8,15 @@ diagnostics, an EV range predictor, and a plain-language interpretability layer 
 reproducible, fully-tested framework where every module is independently usable.
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.10.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-0.13.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
-  <img alt="tests" src="https://img.shields.io/badge/tests-222%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-236%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 222/222 unit tests pass • 25 library modules • 7 chemistries • ruff-clean •
+> **Status.** ✅ 236/236 unit tests pass • 26 library modules • 7 chemistries • ruff-clean •
 > CI on Python 3.10–3.13 • Streamlit dashboard + EV range predictor + executed demo notebook.
 
 ---
@@ -46,8 +46,9 @@ reproducible, fully-tested framework where every module is independently usable.
   manufacturing scatter and a shared-node parallel model (circulating currents between mismatched
   cells, not just averaged voltages).
 - **Model-agnostic estimator framework** — `SocEstimator` / `RecursiveSocEstimator` protocols, a
-  registry (`make_soc_estimator("ukf")`), a bring-your-own-model adapter (wrap any scikit-learn /
-  PyTorch / ONNX model), and `Estimate` values carrying **1-σ uncertainty**.
+  registry (`make_soc_estimator("ukf")`), and adapters to plug in any trained model
+  (`SklearnSocEstimator`, `OnnxSocEstimator`, `FunctionSocEstimator`; `model_from_file` with opt-in
+  pickle + checksum, ONNX as the safe default). `Estimate` values carry **1-σ uncertainty**.
 - **Five SoC estimators + online SoH** — Coulomb counter, EKF, UKF, NumPy LSTM, and a **joint EKF
   that estimates SoC *and* capacity together** (`soh = Q/Q₀` with uncertainty).
 - **Charging-method physics + dynamic aging** — quantify AC vs DC and fast vs slow charging into
@@ -66,11 +67,16 @@ reproducible, fully-tested framework where every module is independently usable.
   loads.
 - **State of Power + CAN telemetry** — multi-horizon (2 s / 10 s / 30 s) traction/regen limits and
   DBC-compatible classic-CAN broadcast frames.
-- **Interpretability layer** — plain-language state/charge summaries, named RandomForest feature
-  importances, multi-estimator agreement + inverse-variance fusion, and SoC ±kσ bands.
+- **Interpretability layer** — plain-language state/charge summaries (optionally LLM-narrated,
+  provider-agnostic), named RandomForest feature importances, multi-estimator agreement +
+  inverse-variance fusion, and SoC ±kσ bands.
+- **Optional LLM diagnostic agent** — a *deterministic* diagnostic engine (fault / thermal / gas /
+  SoH → severity + recommended action) with optional LLM phrasing; **read-only tools** and lazy
+  LangChain / LangGraph / Langfuse integration behind the `[agent]` extra. Provider-agnostic
+  (`llm=` any `str→str`), Claude by default.
 - **Diagnostics + EV range** — DVA/ICA fingerprints, simulated EIS (Nyquist), C-rate map, and a
   first-principles range predictor with weather/traffic/road coupling (India presets included).
-- **Reproducible & tested** — every randomness source is seeded; 208 unit tests; pip-installable
+- **Reproducible & tested** — every randomness source is seeded; 236 unit tests; pip-installable
   with GitHub Actions CI.
 
 ---
@@ -97,7 +103,7 @@ Each chemistry lives in `bms/chemistry.py` (`CHEMISTRY_PROPS`); request one with
 
 ```
 battery-management-system-digital-twin/
-├── bms/                       # Library (25 modules)
+├── bms/                       # Library (26 modules)
 │   ├── chemistry.py           # 7 chemistries: OCV tables, Arrhenius, limits, defaults
 │   ├── ocv_soc.py             # OCV–SOC characteristic (PCHIP interpolant, temp coefficient)
 │   ├── ecm.py                 # 2-RC equivalent-circuit model, Arrhenius scaling, parameter ID
@@ -121,12 +127,13 @@ battery-management-system-digital-twin/
 │   ├── diagnostics.py         # EIS (Nyquist) simulation + C-rate capability map
 │   ├── range_predictor.py     # Physics-based EV range predictor (weather/traffic/road coupling)
 │   ├── interpret.py           # Plain-language explanations, feature importances, fusion
+│   ├── agent.py               # Optional LLM diagnostic agent (LangGraph / LangChain / Langfuse)
 │   ├── data.py                # Load / CC-CV / power profiles, NASA-like & ageing datasets
 │   └── datasets.py            # Real-dataset loaders (LG / NASA) + estimator leaderboard
 ├── app/streamlit_app.py       # Live multi-tab dashboard + range predictor
 ├── notebooks/                 # Executed end-to-end demo
 ├── scripts/build_notebook.py  # Reproducible notebook generator
-├── tests/test_bms.py          # 208 unit tests
+├── tests/test_bms.py          # 236 unit tests
 ├── figures/                   # 12 PNGs produced by the notebook
 ├── docs/architecture.md       # Layered-design notes & invariants
 ├── pyproject.toml • CHANGELOG.md • CONTRIBUTING.md • requirements.txt • LICENSE (MIT)
@@ -158,7 +165,9 @@ battery-management-system-digital-twin/
 | CAN 2.0B telemetry | `bms/can.py` |
 | DVA / ICA, EIS, C-rate map | `bms/dva.py`, `bms/diagnostics.py` |
 | Physics-based EV range prediction | `bms/range_predictor.py` |
-| **Interpretability — explanations, importances, fusion** | `bms/interpret.py` |
+| **Interpretability — explanations (opt. LLM), importances, fusion** | `bms/interpret.py` |
+| **Framework adapters (sklearn / ONNX / BYO)** | `bms/estimation.py` |
+| **Optional LLM diagnostic agent (LangChain / LangGraph / Langfuse)** | `bms/agent.py` |
 | **Real-dataset validation — loaders + estimator leaderboard** | `bms/datasets.py` |
 | Visualisation | `app/streamlit_app.py`, `notebooks/` |
 
@@ -172,6 +181,8 @@ Tested on Python 3.10–3.13. Pip-installable:
 pip install -e .                  # core library only
 pip install -e ".[app,notebook]"  # + Streamlit dashboard and notebook tooling
 pip install -e ".[dev]"           # + pytest and ruff (for contributors)
+pip install -e ".[onnx]"          # + ONNX Runtime (framework-neutral estimators)
+pip install -e ".[agent]"         # + LangChain / LangGraph / Langfuse (LLM diagnostic agent)
 ```
 
 Core runtime dependencies are intentionally minimal (numpy, scipy, pandas, scikit-learn, filterpy);
@@ -293,7 +304,7 @@ Diagnostics, Fault Analysis) and **🚗 Range Predictor**.
 ## Testing
 
 ```bash
-pytest -q          # 222 tests, ~15 s
+pytest -q          # 236 tests, ~30 s
 ruff check .       # lint (library is clean)
 ```
 

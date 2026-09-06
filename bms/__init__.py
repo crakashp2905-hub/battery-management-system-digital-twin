@@ -24,8 +24,18 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.12.0"
+__version__ = "0.13.0"
 
+from .agent import (
+    DiagnosisReport,
+    DiagnosticAgent,
+    Finding,
+    Tool,
+    build_langgraph_agent,
+    to_langchain_tools,
+    traced,
+    twin_tools,
+)
 from .aging import AgingModel, AgingParams, AgingState
 from .balancing import (
     Balancer,
@@ -77,10 +87,13 @@ from .ecm import ECMParameters, SecondOrderECM, fit_ecm_parameters
 from .estimation import (
     Estimate,
     FunctionSocEstimator,
+    OnnxSocEstimator,
     RecursiveSocEstimator,
+    SklearnSocEstimator,
     SocEstimator,
     available_soc_estimators,
     make_soc_estimator,
+    model_from_file,
     register_soc_estimator,
     soc_estimate,
 )
@@ -165,6 +178,9 @@ __all__ = [
     "Estimate", "SocEstimator", "RecursiveSocEstimator", "FunctionSocEstimator",
     "soc_estimate", "make_soc_estimator", "available_soc_estimators",
     "register_soc_estimator",
+    "SklearnSocEstimator", "OnnxSocEstimator", "model_from_file",
+    "Tool", "Finding", "DiagnosisReport", "DiagnosticAgent",
+    "twin_tools", "to_langchain_tools", "build_langgraph_agent", "traced",
     "JointEKFSoH",
     "FEATURE_NAMES", "feature_importances", "estimator_agreement", "soc_report",
     "explain_state", "explain_charge",
