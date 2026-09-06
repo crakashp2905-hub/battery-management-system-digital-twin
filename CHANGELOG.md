@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.13.1] - 2026-09-06
+
+### Changed
+- **CI quality gates are now mandatory.** Ruff is blocking (no longer advisory),
+  and a coverage job enforces **≥ 85%** line coverage (currently 90%) via
+  `pytest-cov`. Added `pytest-cov` to the `[dev]` extra and `[tool.coverage]`
+  config to `pyproject.toml`.
+
 ## [0.13.0] - 2026-09-06
 
 ### Added

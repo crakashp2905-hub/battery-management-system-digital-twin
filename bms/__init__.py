@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.13.0"
+__version__ = "0.13.1"
 
 from .agent import (
     DiagnosisReport,
