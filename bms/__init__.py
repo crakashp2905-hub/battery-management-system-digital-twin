@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 from .aging import AgingModel, AgingParams, AgingState
 from .balancing import (
@@ -42,6 +42,7 @@ from .charging import (
     ChargeResult,
     ChargingModel,
     compare_methods,
+    plating_c_limit,
 )
 from .chemistry import CellChemistry, get_chemistry_props
 from .control import (
@@ -141,7 +142,7 @@ __all__ = [
     "INDIA_CITY_ROUTES", "INDIA_WEATHER",
     "AgingModel", "AgingParams", "AgingState",
     "ChargeMethod", "ChargeProtocol", "ChargeResult", "ChargingModel",
-    "METHOD_POWER_KW", "compare_methods",
+    "METHOD_POWER_KW", "compare_methods", "plating_c_limit",
     "Estimate", "SocEstimator", "RecursiveSocEstimator", "FunctionSocEstimator",
     "soc_estimate", "make_soc_estimator", "available_soc_estimators",
     "register_soc_estimator",

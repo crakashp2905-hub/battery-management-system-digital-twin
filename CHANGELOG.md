@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-09-06
+
+### Added
+- **SoH-aware control** — the supervisor uses state-of-health to protect an
+  aging pack, closing the loop from the charging/plating physics and the
+  aging/SoH estimate to control action:
+  - `BMSSupervisor.set_soh(soh_capacity, soh_resistance)` feeds live SoH (from
+    `JointEKFSoH` or `AgingModel`) into control; `step()` reports `soh_capacity`.
+  - With `SupervisorConfig.soh_aware` on, current is derated piecewise-linearly
+    as capacity SoH falls (full above 0.90, down to a floor fraction at/below
+    0.70), and charge current is capped below the lithium-plating C-rate limit
+    (evaluated at the coldest cell / highest SoC). Off by default (SoH = 1 →
+    identical behaviour).
+- `plating_c_limit()` promoted to a reusable module function shared by the
+  charging model and the supervisor.
+- 5 tests (now **208** total).
+
 ## [0.9.0] - 2026-09-06
 
 ### Added

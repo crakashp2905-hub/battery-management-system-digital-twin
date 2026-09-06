@@ -157,14 +157,8 @@ class ChargingModel:
         return float(ambient_C + self.k_thermal_C_per_C2 * c_rate ** 2)
 
     def plating_c_limit(self, temperature_C: float, soc: float) -> float:
-        """Max safe charge C-rate before lithium plating onset.
-
-        Falls with low temperature (slow diffusion) and high SoC (anode nearly
-        full).  ~2.5C at 25 °C / mid-SoC; ~0.3C at 0 °C or SoC≈1.
-        """
-        t_factor = float(np.clip((temperature_C + 10.0) / 35.0, 0.1, 1.3))
-        soc_factor = float(np.clip(1.0 - soc, 0.1, 1.0))
-        return float(2.5 * t_factor * (0.4 + 0.6 * soc_factor))
+        """Max safe charge C-rate before plating (see module :func:`plating_c_limit`)."""
+        return plating_c_limit(temperature_C, soc)
 
     def plating_risk(self, c_rate: float, temperature_C: float,
                      soc_end: float) -> float:
@@ -269,3 +263,15 @@ def compare_methods(pack_energy_kWh: float = 60.0,
             "fade_%/session": round(r.capacity_fade_pct, 4),
         })
     return pd.DataFrame(rows).set_index("method")
+
+
+def plating_c_limit(temperature_C: float, soc: float) -> float:
+    """Max safe charge C-rate before lithium-plating onset.
+
+    Falls with low temperature (slow Li diffusion) and high SoC (anode nearly
+    full): ~2.5C at 25 °C / mid-SoC, dropping to ~0.3C at 0 °C or SoC ≈ 1.  Used
+    both by the charging model and by SoH-aware control to cap charge current.
+    """
+    t_factor = float(np.clip((temperature_C + 10.0) / 35.0, 0.1, 1.3))
+    soc_factor = float(np.clip(1.0 - soc, 0.1, 1.0))
+    return float(2.5 * t_factor * (0.4 + 0.6 * soc_factor))

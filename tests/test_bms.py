@@ -1851,3 +1851,51 @@ class TestInterpretability:
             bms.ChargeProtocol(bms.ChargeMethod.DC_ULTRA, soc_start=0.2, soc_end=0.9),
             pack_energy_kWh=60.0, q_nom_Ah=2.3, r0_ohm=0.025, v_nom=3.7)
         assert "plating" in bms.explain_charge(cr).lower()
+
+
+# ----------------------------------------------------------------------
+# SoH-aware control (capstone: SoH + plating limits drive the supervisor)
+# ----------------------------------------------------------------------
+class TestSoHAwareControl:
+    def _sup(self, **cfg_kw):
+        cfg = bms.SupervisorConfig(**cfg_kw)
+        return bms.BMSSupervisor(
+            bms.BatteryPack(bms.PackConfig(n_cells=4, seed=1)),
+            bms.ThermalModel(n_cells=4), bms.HybridFaultDetector(), config=cfg)
+
+    def test_off_by_default_leaves_current_unchanged(self):
+        sup = self._sup()                      # soh_aware defaults False
+        sup.set_soh(0.60)                       # very aged
+        assert sup.step(10.0, 1.0)["cmd_current"] == pytest.approx(10.0)
+
+    def test_capacity_soh_derates_current(self):
+        sup = self._sup(soh_aware=True)
+        sup.set_soh(1.0)
+        assert sup.step(10.0, 1.0)["cmd_current"] == pytest.approx(10.0)
+        sup.set_soh(0.70)                       # at floor → min factor 0.5
+        out = sup.step(10.0, 1.0)
+        assert out["cmd_current"] == pytest.approx(5.0)
+        assert out["derated"] is True
+
+    def test_soh_derating_is_monotonic(self):
+        sup = self._sup(soh_aware=True)
+        vals = []
+        for soh in (1.0, 0.90, 0.85, 0.80, 0.70, 0.60):
+            sup.set_soh(soh)
+            vals.append(sup.step(10.0, 1.0)["cmd_current"])
+        assert all(a >= b - 1e-9 for a, b in zip(vals, vals[1:]))   # non-increasing
+        assert vals[0] == pytest.approx(10.0)
+        assert vals[-1] == pytest.approx(5.0)
+
+    def test_plating_cap_limits_cold_charge(self):
+        sup = self._sup(soh_aware=True, plating_aware_charge=True)
+        sup.thermal.T[:] = 0.0                  # cold → low plating C-limit
+        out = sup.step(-30.0, 1.0)              # aggressive charge request
+        assert -30.0 < out["cmd_current"] < 0.0
+        assert abs(out["cmd_current"]) < 15.0   # capped well below the request
+
+    def test_set_soh_clamped_and_reported(self):
+        sup = self._sup(soh_aware=True)
+        sup.set_soh(1.5, soh_resistance=0.5)    # out-of-range inputs
+        assert sup.soh_capacity == 1.0
+        assert sup.step(1.0, 1.0)["soh_capacity"] == 1.0
