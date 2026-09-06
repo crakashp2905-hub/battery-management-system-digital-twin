@@ -1569,3 +1569,467 @@ class TestPrechargeContactors:
         assert seq.start()
         assert seq.update(400.0, 0.0, 1.0) == bms.ContactorState.PRECHARGING
         assert seq.update(400.0, 0.0, 1.0) == bms.ContactorState.FAULT
+
+
+# ----------------------------------------------------------------------
+# Round-2 review fixes
+# ----------------------------------------------------------------------
+class TestRound2Fixes:
+    def test_thermal_runaway_injector_trips_supervisor(self):
+        det = bms.HybridFaultDetector()
+        pack = bms.BatteryPack(bms.PackConfig(n_cells=4, seed=7))
+        thermal = bms.ThermalModel(n_cells=4)
+        inj = bms.FaultInjector([bms.FaultSpec(bms.FaultMode.THERMAL_RUNAWAY,
+                                               start_step=0, cell_index=2)])
+        sup = bms.BMSSupervisor(pack, thermal, det, injector=inj)
+        for k in range(3):
+            sup.step(0.5, 1.0, k=k)
+        assert sup.state == bms.BMSState.SHUTDOWN
+        assert any(e["mode"] == "thermal_runaway" for e in sup.fault_log)
+
+    def test_supervisor_state_of_power_available(self):
+        pack = bms.BatteryPack(bms.PackConfig(n_cells=4, seed=8))
+        thermal = bms.ThermalModel(n_cells=4)
+        sup = bms.BMSSupervisor(pack, thermal, bms.HybridFaultDetector())
+        limits = sup.state_of_power()
+        assert set(limits) == {2.0, 10.0, 30.0}
+        assert all(v.traction_power_W >= 0.0 for v in limits.values())
+
+    def test_sop_default_voltages_track_pack_current(self):
+        pack = bms.BatteryPack(bms.PackConfig(n_cells=4, seed=9))
+        sop = bms.StateOfPower(bms.SOPConfig(max_discharge_current_A=1e4))
+        limits = sop.calculate(pack, pack_current_A=5.0)
+        assert limits[2.0].traction_current_A > 0.0
+        assert np.isfinite(limits[2.0].traction_power_W)
+
+
+# ----------------------------------------------------------------------
+# Charging effects + dynamic aging (SoH)
+# ----------------------------------------------------------------------
+class TestChargingAging:
+    _ARGS = dict(pack_energy_kWh=60.0, q_nom_Ah=2.3, r0_ohm=0.025, v_nom=3.7)
+
+    def _charge(self, method, **kw):
+        proto = bms.ChargeProtocol(method, soc_start=0.2, soc_end=0.9, **kw)
+        return bms.ChargingModel().simulate(proto, **self._ARGS)
+
+    def test_c_rate_scales_with_power(self):
+        m = bms.ChargingModel()
+        slow = m.effective_c_rate(bms.ChargeProtocol(bms.ChargeMethod.AC_LEVEL2), 60.0)
+        fast = m.effective_c_rate(bms.ChargeProtocol(bms.ChargeMethod.DC_ULTRA), 60.0)
+        assert 0.0 < slow < fast
+        assert fast > 3.0                      # 250 kW into 60 kWh ≈ 4C
+
+    def test_ultra_charging_faster_hotter_and_ages_more(self):
+        ac = self._charge(bms.ChargeMethod.AC_LEVEL2)
+        dc = self._charge(bms.ChargeMethod.DC_ULTRA)
+        assert dc.duration_min < ac.duration_min           # fast to charge
+        assert dc.peak_cell_temp_C > ac.peak_cell_temp_C    # but hotter
+        assert dc.plating_risk > 0.0 and ac.plating_risk == 0.0
+        assert dc.capacity_fade_pct > 5.0 * ac.capacity_fade_pct  # and ages far more
+        assert 0.0 < ac.efficiency < 1.0 and 0.0 < dc.efficiency < 1.0
+
+    def test_moderate_dc_is_gentle(self):
+        # 50 kW DC (~0.8C) triggers no plating and ages like AC, unlike 250 kW.
+        dc_fast = self._charge(bms.ChargeMethod.DC_FAST)
+        ac = self._charge(bms.ChargeMethod.AC_LEVEL2)
+        assert dc_fast.plating_risk == 0.0
+        assert dc_fast.capacity_fade_pct < 3.0 * ac.capacity_fade_pct
+
+    def test_cold_fast_charge_raises_plating_and_fade(self):
+        warm = self._charge(bms.ChargeMethod.DC_ULTRA, ambient_C=25.0)
+        cold = self._charge(bms.ChargeMethod.DC_ULTRA, ambient_C=0.0)
+        assert cold.plating_risk > warm.plating_risk
+        assert cold.capacity_fade_pct > warm.capacity_fade_pct
+
+    def test_aging_cycle_reduces_soh_and_raises_resistance(self):
+        model = bms.AgingModel()
+        s = model.cycle(bms.AgingState(), throughput_efc=1.0, c_rate=3.0,
+                        temperature_C=40.0, dod=1.0)
+        assert s.soh_capacity < 1.0
+        assert s.soh_resistance > 1.0
+        assert s.equivalent_full_cycles == pytest.approx(1.0)
+
+    def test_calendar_fade_follows_sqrt_time(self):
+        model = bms.AgingModel()
+        s = bms.AgingState()
+        s1 = model.calendar(s, days=100.0, temperature_C=35.0, soc_avg=0.9)
+        # A second equal interval adds less fade than the first (√-time law).
+        first = s.soh_capacity - s1.soh_capacity
+        s2 = model.calendar(s1, days=100.0, temperature_C=35.0, soc_avg=0.9)
+        second = s1.soh_capacity - s2.soh_capacity
+        assert first > second > 0.0
+        assert s2.calendar_days == pytest.approx(200.0)
+
+    def test_apply_to_pack_scales_capacity_and_resistance_idempotently(self):
+        pack = bms.BatteryPack(bms.PackConfig(n_cells=4, seed=3))
+        q0 = pack.capacities_Ah.copy()
+        r0 = np.array([g.params.R0 for g in pack.groups])
+        model = bms.AgingModel()
+        state = bms.AgingState(soh_capacity=0.8, soh_resistance=1.5)
+        model.apply_to_pack(pack, state)
+        assert np.allclose(pack.capacities_Ah, 0.8 * q0, rtol=1e-6)
+        assert np.allclose([g.params.R0 for g in pack.groups], 1.5 * r0, rtol=1e-6)
+        model.apply_to_pack(pack, state)   # again → same, not compounded
+        assert np.allclose(pack.capacities_Ah, 0.8 * q0, rtol=1e-6)
+
+    def test_ultra_charging_lower_soh_over_life(self):
+        model = bms.AgingModel()
+
+        def soh_after(method, n):
+            r = self._charge(method)
+            s = bms.AgingState()
+            for _ in range(n):
+                s = model.cycle(s, r.throughput_efc, r.c_rate, r.peak_cell_temp_C,
+                                r.throughput_efc, 0.5, r.plating_risk)
+            return s.soh_capacity
+
+        soh_ac = soh_after(bms.ChargeMethod.AC_LEVEL2, 300)
+        soh_dc = soh_after(bms.ChargeMethod.DC_ULTRA, 300)
+        assert soh_ac > 0.95            # slow charging barely ages over 300 charges
+        assert soh_dc < soh_ac          # ultra-rapid degrades markedly more
+
+
+# ----------------------------------------------------------------------
+# Model-agnostic estimator registry / protocol
+# ----------------------------------------------------------------------
+class TestEstimatorRegistry:
+    @staticmethod
+    def _trace():
+        p = bms.ECMParameters()
+        ocv = bms.OCVSOC()
+        ecm = bms.SecondOrderECM(params=p, ocv_curve=ocv)
+        ecm.reset(0.8)
+        current = np.full(200, 1.0)
+        sim = ecm.simulate(current, dt=1.0)
+        return p, ocv, current, sim["v_terminal"], sim["soc"]
+
+    def test_registry_lists_builtins(self):
+        assert {"coulomb", "ekf", "ukf", "lstm"} <= set(bms.available_soc_estimators())
+
+    def test_all_registered_satisfy_protocol(self):
+        p, ocv, *_ = self._trace()
+        for name in bms.available_soc_estimators():
+            est = bms.make_soc_estimator(name, params=p, ocv_curve=ocv, capacity_Ah=2.3)
+            assert isinstance(est, bms.SocEstimator), name
+
+    def test_recursive_vs_batch_distinction(self):
+        p, ocv, *_ = self._trace()
+        for name in ("coulomb", "ekf", "ukf"):
+            est = bms.make_soc_estimator(name, params=p, ocv_curve=ocv)
+            assert isinstance(est, bms.RecursiveSocEstimator), name
+        # The sequence LSTM is a SocEstimator but not a recursive one.
+        lstm = bms.make_soc_estimator("lstm")
+        assert isinstance(lstm, bms.SocEstimator)
+        assert not isinstance(lstm, bms.RecursiveSocEstimator)
+
+    def test_recursive_estimators_track_and_stay_bounded(self):
+        p, ocv, current, voltage, truth = self._trace()
+        for name in ("coulomb", "ekf", "ukf"):
+            est = bms.make_soc_estimator(name, params=p, ocv_curve=ocv, capacity_Ah=2.3)
+            est.reset(0.8)
+            out = est.run(current, voltage, 1.0)
+            assert np.all((out >= 0.0) & (out <= 1.0)), name
+            assert abs(out[-1] - truth[-1]) < 0.05, name
+
+    def test_uncertainty_reported_when_available(self):
+        p, ocv, current, voltage, _ = self._trace()
+        ekf = bms.make_soc_estimator("ekf", params=p, ocv_curve=ocv)
+        ekf.reset(0.8)
+        ekf.run(current, voltage, 1.0)
+        assert bms.soc_estimate(ekf).has_uncertainty
+        assert not bms.soc_estimate(bms.make_soc_estimator("coulomb")).has_uncertainty
+
+    def test_function_estimator_is_model_agnostic(self):
+        # Wrap an arbitrary callable (stand-in for a trained sklearn/torch/onnx
+        # model) as a first-class estimator.
+        est = bms.FunctionSocEstimator(
+            lambda v, i, dt, T, s: s - i * dt / (2.3 * 3600.0), name="byo")
+        assert isinstance(est, bms.SocEstimator)
+        out = est.run(np.full(100, 1.0), np.full(100, 3.7), 1.0, soc0=0.9)
+        assert np.all((out >= 0.0) & (out <= 1.0)) and out[-1] < 0.9
+
+    def test_unknown_estimator_raises(self):
+        with pytest.raises(KeyError):
+            bms.make_soc_estimator("does_not_exist")
+
+    def test_custom_registration_round_trips(self):
+        @bms.register_soc_estimator("const_half")
+        def _factory(**_):
+            return bms.FunctionSocEstimator(lambda v, i, dt, T, s: 0.5,
+                                            name="const_half")
+        assert "const_half" in bms.available_soc_estimators()
+        assert bms.make_soc_estimator("const_half").update(1.0, 3.7, 1.0) == 0.5
+
+
+# ----------------------------------------------------------------------
+# Online SoH — joint EKF (SoC + capacity)
+# ----------------------------------------------------------------------
+class TestJointEKFSoH:
+    @staticmethod
+    def _aged_trace(q_true=2.0, n=2200):
+        ocv = bms.OCVSOC()
+        ecm = bms.SecondOrderECM(params=bms.ECMParameters(Q_nom_Ah=q_true),
+                                 ocv_curve=ocv)
+        ecm.reset(0.95)
+        current = np.full(n, 1.0)
+        sim = ecm.simulate(current, dt=1.0)
+        rng = np.random.default_rng(0)
+        return current, sim["v_terminal"] + rng.normal(0, 0.003, n), sim["soc"]
+
+    def test_in_registry_and_recursive(self):
+        assert "joint_ekf" in bms.available_soc_estimators()
+        est = bms.make_soc_estimator("joint_ekf", capacity_Ah=2.3)
+        assert isinstance(est, bms.RecursiveSocEstimator)
+        assert hasattr(est, "soh") and hasattr(est, "capacity_Ah")
+
+    def test_learns_aged_capacity(self):
+        current, voltage, _ = self._aged_trace(q_true=2.0)
+        est = bms.make_soc_estimator("joint_ekf", capacity_Ah=2.3)  # BOL guess 2.3
+        est.reset(0.95)
+        est.run(current, voltage, 1.0)
+        # Converges from 2.3 toward the true aged 2.0 Ah.
+        assert est.capacity_Ah < 2.2
+        assert abs(est.capacity_Ah - 2.0) < abs(2.3 - 2.0)     # improved
+        assert 0.80 < est.soh < 0.96
+        assert est.soh_uncertainty_1sigma > 0.0
+
+    def test_soc_bounded_and_tracks(self):
+        current, voltage, truth = self._aged_trace(q_true=2.0)
+        est = bms.make_soc_estimator("joint_ekf", capacity_Ah=2.3)
+        est.reset(0.95)
+        out = est.run(current, voltage, 1.0)
+        assert np.all((out >= 0.0) & (out <= 1.0))
+        assert abs(out[-1] - truth[-1]) < 0.03
+
+
+# ----------------------------------------------------------------------
+# Interpretability layer
+# ----------------------------------------------------------------------
+class TestInterpretability:
+    def _fitted_detector(self):
+        det = bms.HybridFaultDetector()
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(60, det._buffer.full_feature_size))
+        y = rng.choice(["none", "overcharge", "thermal_runaway"], size=60)
+        det.fit(X, y)
+        return det
+
+    def test_feature_importances_named_and_normalised(self):
+        imp = bms.feature_importances(self._fitted_detector())
+        assert set(imp) <= set(bms.FEATURE_NAMES)
+        assert sum(imp.values()) == pytest.approx(1.0, abs=1e-6)
+        values = list(imp.values())
+        assert values == sorted(values, reverse=True)      # most-important first
+
+    def test_feature_importances_requires_fit(self):
+        with pytest.raises(RuntimeError):
+            bms.feature_importances(bms.HybridFaultDetector())
+
+    def test_estimator_agreement_inverse_variance_fusion(self):
+        ests = {"loose": bms.Estimate(0.50, 0.10),
+                "tight": bms.Estimate(0.60, 0.01)}
+        ag = bms.estimator_agreement(ests)
+        assert ag["spread"] == pytest.approx(0.10)
+        assert ag["disagreement"] is True                  # 0.10 > 0.05
+        assert ag["fused"] > 0.58                           # pulled toward the tight one
+        assert ag["mean"] == pytest.approx(0.55)
+
+    def test_soc_report_with_and_without_uncertainty(self):
+        p, ocv = bms.ECMParameters(), bms.OCVSOC()
+        ekf = bms.make_soc_estimator("ekf", params=p, ocv_curve=ocv)
+        assert "±" in bms.soc_report(ekf)
+        assert "unknown" in bms.soc_report(bms.make_soc_estimator("coulomb"))
+
+    def test_explain_state_and_charge(self):
+        sup = bms.BMSSupervisor(bms.BatteryPack(bms.PackConfig(n_cells=4, seed=1)),
+                                bms.ThermalModel(n_cells=4),
+                                bms.HybridFaultDetector())
+        text = bms.explain_state(sup.step(2.0, 1.0), soh=0.9)
+        assert "SoC" in text and "SoH 90.0%" in text
+        cr = bms.ChargingModel().simulate(
+            bms.ChargeProtocol(bms.ChargeMethod.DC_ULTRA, soc_start=0.2, soc_end=0.9),
+            pack_energy_kWh=60.0, q_nom_Ah=2.3, r0_ohm=0.025, v_nom=3.7)
+        assert "plating" in bms.explain_charge(cr).lower()
+
+
+# ----------------------------------------------------------------------
+# SoH-aware control (capstone: SoH + plating limits drive the supervisor)
+# ----------------------------------------------------------------------
+class TestSoHAwareControl:
+    def _sup(self, **cfg_kw):
+        cfg = bms.SupervisorConfig(**cfg_kw)
+        return bms.BMSSupervisor(
+            bms.BatteryPack(bms.PackConfig(n_cells=4, seed=1)),
+            bms.ThermalModel(n_cells=4), bms.HybridFaultDetector(), config=cfg)
+
+    def test_off_by_default_leaves_current_unchanged(self):
+        sup = self._sup()                      # soh_aware defaults False
+        sup.set_soh(0.60)                       # very aged
+        assert sup.step(10.0, 1.0)["cmd_current"] == pytest.approx(10.0)
+
+    def test_capacity_soh_derates_current(self):
+        sup = self._sup(soh_aware=True)
+        sup.set_soh(1.0)
+        assert sup.step(10.0, 1.0)["cmd_current"] == pytest.approx(10.0)
+        sup.set_soh(0.70)                       # at floor → min factor 0.5
+        out = sup.step(10.0, 1.0)
+        assert out["cmd_current"] == pytest.approx(5.0)
+        assert out["derated"] is True
+
+    def test_soh_derating_is_monotonic(self):
+        sup = self._sup(soh_aware=True)
+        vals = []
+        for soh in (1.0, 0.90, 0.85, 0.80, 0.70, 0.60):
+            sup.set_soh(soh)
+            vals.append(sup.step(10.0, 1.0)["cmd_current"])
+        assert all(a >= b - 1e-9 for a, b in zip(vals, vals[1:]))   # non-increasing
+        assert vals[0] == pytest.approx(10.0)
+        assert vals[-1] == pytest.approx(5.0)
+
+    def test_plating_cap_limits_cold_charge(self):
+        sup = self._sup(soh_aware=True, plating_aware_charge=True)
+        sup.thermal.T[:] = 0.0                  # cold → low plating C-limit
+        out = sup.step(-30.0, 1.0)              # aggressive charge request
+        assert -30.0 < out["cmd_current"] < 0.0
+        assert abs(out["cmd_current"]) < 15.0   # capped well below the request
+
+    def test_set_soh_clamped_and_reported(self):
+        sup = self._sup(soh_aware=True)
+        sup.set_soh(1.5, soh_resistance=0.5)    # out-of-range inputs
+        assert sup.soh_capacity == 1.0
+        assert sup.step(1.0, 1.0)["soh_capacity"] == 1.0
+
+
+# ----------------------------------------------------------------------
+# Mechanical / gas failure modes (pressure, swelling, venting, ISC)
+# ----------------------------------------------------------------------
+class TestMechanics:
+    def test_pressure_rises_with_temperature_and_vents(self):
+        pm = bms.PressureModel()
+        st = bms.CellMechanicalState()
+        max_p, vented = st.pressure_kPa, False
+        for T in np.linspace(25, 95, 90):
+            st = pm.update(st, float(T), soc=0.9, dt=1.0)
+            max_p = max(max_p, st.pressure_kPa)
+            vented = vented or st.vented
+        assert max_p > 300.0                 # pressure builds substantially
+        assert vented                        # crosses the safety-vent threshold
+        assert st.h2_ppm > 0.0 and st.swelling_mm > 0.0
+
+    def test_pressure_warning_leads_temperature(self):
+        # The headline result: pressure/gas trips *before* the temperature rule.
+        pm = bms.PressureModel()
+        det = bms.MechanicalFaultDetector()
+        st = bms.CellMechanicalState()
+        t_ramp = np.linspace(25, 100, 150)
+        t_temp = next(k for k, T in enumerate(t_ramp) if T >= 70.0)  # NMC runaway rule
+        t_press, prev_p = None, st.pressure_kPa
+        for k, T in enumerate(t_ramp):
+            st = pm.update(st, float(T), 0.9, 1.0)
+            label, src = det.predict_step(st, prev_pressure_kPa=prev_p, dt=1.0)
+            if t_press is None and label != "none":
+                t_press = k
+                assert src == "rule"
+            prev_p = st.pressure_kPa
+        assert t_press is not None
+        assert t_press < t_temp              # pressure LEADS temperature
+
+    def test_venting_releases_gas_and_heat(self):
+        pm = bms.PressureModel()
+        st = bms.CellMechanicalState()
+        heat = 0.0
+        for _ in range(200):
+            st = pm.update(st, 90.0, 0.9, 1.0)
+            if st.vent_event:
+                heat = pm.vent_heat_J(st)
+                break
+        assert st.vented and heat > 0.0
+        assert st.pressure_kPa < pm.params.vent_pressure_kPa   # dropped after release
+
+    def test_internal_short_via_coulombic_efficiency(self):
+        det = bms.MechanicalFaultDetector()
+        st = bms.CellMechanicalState()       # benign pressure/swelling
+        assert det.predict_step(st, coulombic_efficiency=0.95) == ("internal_short", "rule")
+        assert det.predict_step(st, coulombic_efficiency=1.0)[0] == "none"
+
+    def test_swelling_detected(self):
+        det = bms.MechanicalFaultDetector()
+        assert det.predict_step(bms.CellMechanicalState(swelling_mm=2.0))[0] == "swelling"
+
+    def test_coulombic_efficiency_helper(self):
+        assert bms.coulombic_efficiency(10.0, 9.8) == pytest.approx(0.98)
+        assert bms.coulombic_efficiency(0.0, 0.0) == 1.0
+        assert bms.coulombic_efficiency(10.0, 12.0) == 1.0     # capped at 1.0
+
+    def test_new_fault_modes_and_can_codes(self):
+        names = {"gas_venting", "internal_short", "swelling", "electrolyte_leak"}
+        assert names <= {m.value for m in bms.FaultMode}
+        assert names <= set(bms.BMSCanBus.FAULT_CODES)
+
+
+# ----------------------------------------------------------------------
+# Real-dataset validation: loaders, fixture, and leaderboard
+# ----------------------------------------------------------------------
+class TestDatasets:
+    def test_synthetic_drivecycle_consistent(self):
+        d = bms.synthetic_drivecycle("nmc", duration_s=600, seed=3)
+        assert d.n == len(d.soc_true) == len(d.voltage_V)
+        assert np.all((d.soc_true >= 0.0) & (d.soc_true <= 1.0))
+        assert 2.5 < float(np.median(d.voltage_V)) < 4.3
+        assert d.dt == pytest.approx(1.0)
+
+    def test_csv_round_trip(self, tmp_path):
+        d = bms.synthetic_drivecycle("lfp", duration_s=300, seed=4)
+        p = tmp_path / "dc.csv"
+        bms.save_drivecycle_csv(d, p)
+        d2 = bms.load_drivecycle_csv(p, chemistry="lfp")
+        assert d2.n == d.n
+        assert np.allclose(d2.soc_true, d.soc_true)
+        assert np.allclose(d2.voltage_V, d.voltage_V)
+
+    def test_leaderboard_kf_beats_coulomb_under_bias(self):
+        d = bms.synthetic_drivecycle("nmc", duration_s=1200, seed=1, current_bias_A=0.4)
+        lb = bms.estimator_leaderboard(d)
+        assert {"rmse", "mae", "max_err", "runtime_s"} <= set(lb.columns)
+        assert list(lb["rmse"]) == sorted(lb["rmse"])            # ranked by rmse
+        assert lb.loc["ekf", "rmse"] < lb.loc["coulomb", "rmse"]  # KF beats drift
+
+    def test_coulomb_counted_when_soc_column_absent(self, tmp_path):
+        import pandas as pd
+        d = bms.synthetic_drivecycle("nmc", duration_s=200, seed=2)
+        pd.DataFrame({"time_s": d.time_s, "current_A": d.current_A,
+                      "voltage_V": d.voltage_V}).to_csv(tmp_path / "no_soc.csv", index=False)
+        d2 = bms.load_drivecycle_csv(tmp_path / "no_soc.csv", chemistry="nmc",
+                                     soc0=float(d.soc_true[0]))
+        assert d2.n == d.n and np.all((d2.soc_true >= 0.0) & (d2.soc_true <= 1.0))
+
+    def test_committed_sample_loads_and_scores(self):
+        sample = (Path(__file__).resolve().parents[1]
+                  / "data" / "samples" / "synthetic_drivecycle_nmc.csv")
+        assert sample.exists()
+        d = bms.load_drivecycle_csv(sample, chemistry="nmc")
+        lb = bms.estimator_leaderboard(d, estimators=["coulomb", "ekf"])
+        assert bool(np.isfinite(lb["rmse"]).all())
+
+    def test_capacity_fade_soh_and_rul(self, tmp_path):
+        import pandas as pd
+        cyc = np.arange(1, 201.0)
+        cap = 2.3 * (1 - 0.0004 * cyc)
+        pd.DataFrame({"cycle": cyc, "capacity_Ah": cap}).to_csv(tmp_path / "cap.csv", index=False)
+        c2, cap2 = bms.load_capacity_fade_csv(tmp_path / "cap.csv")
+        assert np.allclose(cap2, cap)
+        soh, rul = bms.soh_curve(cap2)
+        assert soh[0] == pytest.approx(1.0) and soh[-1] < 1.0
+        assert rul > 0.0 and np.isfinite(rul)
+
+    def test_nasa_mat_parser(self, tmp_path):
+        from scipy.io import savemat
+        p = tmp_path / "B0005.mat"
+        savemat(str(p), {"B0005": {"cycle": [
+            {"type": "discharge", "data": {"Capacity": 1.85}},
+            {"type": "charge", "data": {}},
+            {"type": "discharge", "data": {"Capacity": 1.74}}]}})
+        nums, caps = bms.nasa_mat_to_capacity(str(p))
+        assert nums.tolist() == [1.0, 2.0]
+        assert np.allclose(caps, [1.85, 1.74])

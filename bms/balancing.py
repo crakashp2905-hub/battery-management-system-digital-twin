@@ -23,7 +23,7 @@ returns SOC convergence, energy delivered, and energy lost as a DataFrame.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd

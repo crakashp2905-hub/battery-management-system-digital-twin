@@ -47,7 +47,8 @@ class BMSCanBus:
                    "balancing": 3, "fault": 4, "shutdown": 5}
     FAULT_CODES = {"none": 0, "overcharge": 1, "short_circuit": 2,
                    "thermal_runaway": 3, "sensor_dropout": 4,
-                   "sensor_bias": 5, "undervoltage": 6}
+                   "sensor_bias": 5, "undervoltage": 6, "gas_venting": 7,
+                   "internal_short": 8, "swelling": 9, "electrolyte_leak": 10}
 
     @staticmethod
     def _u16(value: float, scale: float) -> int:

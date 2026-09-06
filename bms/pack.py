@@ -35,12 +35,12 @@ configure OCV tables, Arrhenius constants, and ECM defaults for that chemistry.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Sequence
 
 import numpy as np
 
-from .ecm import SecondOrderECM, ECMParameters
+from .ecm import ECMParameters, SecondOrderECM
 from .ocv_soc import OCVSOC
 
 # ``np.trapezoid`` was added in NumPy 2.0; fall back to ``np.trapz`` on older

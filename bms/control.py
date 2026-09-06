@@ -7,6 +7,8 @@ subsystem together and exposes a single ``step`` entry point.
 States
 ------
 * IDLE          — pack in low-load, balancing allowed if imbalance > th.
+* PRECHARGE     — HV contactor pre-charging; pack current is gated to zero
+                  until the DC-link reaches the target ratio of pack voltage.
 * OPERATING     — load on, SOC estimation + thermal regulation active.
 * BALANCING     — explicit balancing window (e.g. end-of-charge).
 * FAULT         — a detected fault triggers protective action: open
@@ -43,10 +45,8 @@ from enum import Enum
 
 import numpy as np
 
-from .balancing import (Balancer, InductorBalancer, PassiveBalancer,
-                        SwitchedCapacitorBalancer)
-from .faults import (FaultInjector, FaultMode, HybridFaultDetector,
-                     extract_features)
+from .balancing import Balancer, InductorBalancer, PassiveBalancer, SwitchedCapacitorBalancer
+from .faults import FaultInjector, FaultMode, HybridFaultDetector, extract_features
 from .pack import BatteryPack
 from .passport import BatteryPassport
 from .thermal import PredictiveCoolingController, ThermalModel
@@ -144,6 +144,14 @@ class SupervisorConfig:
     cooling_ff_gain: float = 0.02
     precharge_target_ratio: float = 0.95
     precharge_timeout_s: float = 5.0
+    # SoH-aware control: derate current as the pack ages, and cap the charge
+    # C-rate below the lithium-plating threshold.  Off by default (SoH = 1 →
+    # identical behaviour to before).
+    soh_aware: bool = False
+    soh_derate_start: float = 0.90       # SoH above which no derating
+    soh_derate_floor: float = 0.70       # SoH at/below which current hits the floor
+    soh_min_current_factor: float = 0.5  # current fraction at/below the floor
+    plating_aware_charge: bool = True    # cap charge C-rate to the plating limit
 
 
 @dataclass
@@ -172,6 +180,8 @@ class BMSSupervisor:
         self._last_T_cells = self.thermal.T.copy()
         self._last_cell_currents = np.zeros(self.pack.n_cells)
         self._fault_log: list[dict] = []
+        self._soh_capacity = 1.0
+        self._soh_resistance = 1.0
         # Existing simulations represent an already connected battery.  The
         # sequence is therefore initially closed; callers explicitly open and
         # start it when modelling vehicle key-on/pre-charge behaviour.
@@ -280,7 +290,8 @@ class BMSSupervisor:
             Keys: ``state``, ``fault_label``, ``fault_source``, ``v_cells``,
             ``v_pack``, ``soc``, ``T_cells``, ``cooling_duty``, ``balancer``,
             ``balancing_currents``, ``imbalance``, ``cmd_current``,
-            ``derated``, ``power_W``, ``peak_power_W``, ``soe_Wh``.
+            ``derated``, ``power_W``, ``peak_power_W``, ``soe_Wh``,
+            ``contactor_state``, ``precharge_elapsed_s``, ``soh_capacity``.
         """
         # ---- 0. Power → current conversion ---------------------------
         if requested_power_W is not None:
@@ -356,6 +367,14 @@ class BMSSupervisor:
                 derated = True
             cmd_current = derated_current
 
+            # SoH-aware limiting: shrink current as the pack ages and cap the
+            # charge C-rate below the lithium-plating threshold.
+            if self.config.soh_aware:
+                soh_limited = self._apply_soh_limits(cmd_current)
+                if abs(soh_limited) < abs(cmd_current) - 1e-6:
+                    derated = True
+                cmd_current = soh_limited
+
             balancer = self._select_balancer()
 
         bal_currents = (balancer.step(self.pack, dt) if balancer is not None
@@ -427,6 +446,7 @@ class BMSSupervisor:
             "soe_Wh": soe_Wh,
             "contactor_state": self.contactor.state.value,
             "precharge_elapsed_s": self.contactor.elapsed_s,
+            "soh_capacity": self._soh_capacity,
         }
 
     # ------------------------------------------------------------------
@@ -472,3 +492,59 @@ class BMSSupervisor:
         if started:
             self.state = BMSState.PRECHARGE
         return started
+
+    # ------------------------------------------------------------------
+    def state_of_power(self, config=None) -> dict:
+        """State-of-power limits for the present (rested) pack/thermal state.
+
+        Convenience wrapper around :class:`bms.sop.StateOfPower` using this
+        supervisor's own pack and measured temperatures, so SOP is reachable
+        without re-wiring the pack by hand.  Returns limits keyed by horizon
+        in seconds.  Pass a :class:`bms.sop.SOPConfig` to set horizons/limits.
+        """
+        from .sop import SOPConfig, StateOfPower
+        calc = StateOfPower(config or SOPConfig())
+        return calc.calculate(self.pack, temperatures_C=self.thermal.T)
+
+    # ------------------------------------------------------------------
+    def set_soh(self, soh_capacity: float, soh_resistance: float = 1.0) -> None:
+        """Set the pack's state-of-health used by SoH-aware control.
+
+        Feed this from the online estimator (``JointEKFSoH.soh``) or the offline
+        ``AgingModel``.  ``soh_capacity`` is capacity retention Q/Q0 ∈ [0, 1];
+        ``soh_resistance`` is R0/R0_0 (≥ 1).
+        """
+        self._soh_capacity = float(np.clip(soh_capacity, 0.0, 1.0))
+        self._soh_resistance = float(max(1.0, soh_resistance))
+
+    @property
+    def soh_capacity(self) -> float:
+        return self._soh_capacity
+
+    def _soh_current_factor(self) -> float:
+        """Allowed current fraction given capacity SoH (piecewise-linear derating)."""
+        cfg = self.config
+        soh = self._soh_capacity
+        if soh >= cfg.soh_derate_start:
+            return 1.0
+        if soh <= cfg.soh_derate_floor:
+            return cfg.soh_min_current_factor
+        frac = ((soh - cfg.soh_derate_floor)
+                / (cfg.soh_derate_start - cfg.soh_derate_floor))
+        return cfg.soh_min_current_factor + frac * (1.0 - cfg.soh_min_current_factor)
+
+    def _charge_current_cap(self) -> float:
+        """Max charge-current magnitude before plating (coldest cell, highest
+        SoC — the most plating-prone condition)."""
+        from .charging import plating_c_limit
+        c_limit = plating_c_limit(float(self.thermal.T.min()),
+                                  float(self.pack.soc.max()))
+        cap_Ah = float(self.pack.capacities_Ah.min())     # weakest series group
+        return c_limit * cap_Ah
+
+    def _apply_soh_limits(self, current: float) -> float:
+        """Capacity-SoH derating plus, on charge, the lithium-plating current cap."""
+        limited = current * self._soh_current_factor()
+        if self.config.plating_aware_charge and limited < 0.0:
+            limited = max(limited, -self._charge_current_cap())   # charge = negative
+        return limited

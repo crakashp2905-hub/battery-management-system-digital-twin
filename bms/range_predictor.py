@@ -26,7 +26,7 @@ Weather effects
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
@@ -642,8 +642,11 @@ class RangePredictor:
             if E_net > remaining_Wh and E_net > 0:
                 # Battery runs out mid-segment — compute partial distance
                 frac = float(remaining_Wh / E_net)
-                E_tr *= frac; E_sg *= frac; E_re *= frac
-                E_hv *= frac; E_ac *= frac
+                E_tr *= frac
+                E_sg *= frac
+                E_re *= frac
+                E_hv *= frac
+                E_ac *= frac
                 partial_km = seg.distance_km * frac
                 E_net = remaining_Wh
                 remaining_Wh = 0.0
@@ -653,7 +656,6 @@ class RangePredictor:
                 partial_km = seg.distance_km
                 remaining_Wh -= max(E_net, 0.0)
                 # Recompute SOC from remaining energy
-                usable_full = pack_energy_Wh * cap_f * (initial_soc - self.SOC_RESERVE)
                 soc = float(self.SOC_RESERVE + remaining_Wh * (1.0 + eff_oh)
                             / max(pack_energy_Wh * cap_f, 1e-6))
                 soc = float(np.clip(soc, 0.0, 1.0))

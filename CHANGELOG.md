@@ -4,6 +4,135 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-09-06
+
+### Added
+- **Real-dataset validation scaffold** (`bms/datasets.py`):
+  - `DriveCycleData` + `synthetic_drivecycle()` (a physically-consistent fixture,
+    with an optional current-sensor bias); `load_drivecycle_csv()` /
+    `save_drivecycle_csv()` — real LG-18650 CSVs or the fixture, with column
+    remapping and coulomb-counted SoC when ground truth is absent.
+  - `estimator_leaderboard()` — runs every registered estimator on a trace and
+    ranks them by SoC RMSE / MAE / max-error / runtime. Under a current bias the
+    EKF/UKF beat the Coulomb counter, as expected.
+  - SoH path: `load_capacity_fade_csv()`, `nasa_mat_to_capacity()` (parses the
+    NASA PCoE `.mat`), and `soh_curve()` (SoH series + RUL extrapolation).
+  - `DATASET_SOURCES` (LG-18650 / NASA PCoE / MIT-Stanford URLs + usage) and a
+    committed synthetic sample under `data/samples/`.
+- 7 tests (now **222** total). Raw datasets are not committed — drop them in and
+  the loaders + leaderboard run unchanged.
+
+## [0.11.0] - 2026-09-06
+
+### Added
+- **Mechanical / gas failure modes** (`bms/mechanics.py`) — the failure class that
+  voltage/temperature-only BMS logic misses:
+  - `PressureModel` couples cell temperature/SoC to internal **pressure, gas
+    generation (Arrhenius, accelerated above an onset), swelling, H₂
+    concentration, and safety-venting** (releasing gas + an exotherm fed back to
+    the thermal model). Because gas and pressure rise before temperature, the
+    pressure rule trips **~17 s before** the temperature-runaway rule on the
+    reference heat ramp — quantified early warning.
+  - `MechanicalFaultDetector` — rule detector for `GAS_VENTING`, `INTERNAL_SHORT`
+    (microfracture, via coulombic efficiency < 1), and `SWELLING`.
+  - `coulombic_efficiency()` helper (from passport Ah totals).
+- Four new `FaultMode`s — `gas_venting`, `internal_short`, `swelling`,
+  `electrolyte_leak` — with matching CAN telemetry codes.
+- 7 tests including a **pressure-leads-temperature** lead-time test (now **215** total).
+
+## [0.10.0] - 2026-09-06
+
+### Added
+- **SoH-aware control** — the supervisor uses state-of-health to protect an
+  aging pack, closing the loop from the charging/plating physics and the
+  aging/SoH estimate to control action:
+  - `BMSSupervisor.set_soh(soh_capacity, soh_resistance)` feeds live SoH (from
+    `JointEKFSoH` or `AgingModel`) into control; `step()` reports `soh_capacity`.
+  - With `SupervisorConfig.soh_aware` on, current is derated piecewise-linearly
+    as capacity SoH falls (full above 0.90, down to a floor fraction at/below
+    0.70), and charge current is capped below the lithium-plating C-rate limit
+    (evaluated at the coldest cell / highest SoC). Off by default (SoH = 1 →
+    identical behaviour).
+- `plating_c_limit()` promoted to a reusable module function shared by the
+  charging model and the supervisor.
+- **Dashboard:** new 🔋 *Charging & Aging* tab — an AC/DC & fast/slow comparison
+  table, charge-time / efficiency / peak-temperature bars, a projected-SoH-over-
+  cycles chart, and a plain-language `explain_charge` summary per method.
+- 5 tests (now **208** total).
+
+## [0.9.0] - 2026-09-06
+
+### Added
+- **Online state-of-health** (`bms/soh_estimator.py`): `JointEKFSoH`, a joint
+  Extended Kalman Filter estimating SoC **and** usable capacity together
+  (state = [SoC, V_RC1, V_RC2, Q]). It tracks capacity as the cell ages,
+  exposing a live `soh = Q/Q_nominal` with 1-σ uncertainty, and converges from a
+  beginning-of-life guess toward the true aged capacity within a cycle.
+  Registered as `"joint_ekf"` in the estimator registry; pairs with the offline
+  `AgingModel` (which *predicts* fade — this *estimates* it from data).
+- **Interpretability layer** (`bms/interpret.py`):
+  - `explain_state()` / `explain_charge()` — plain-language summaries of a
+    supervisor step or a charge session.
+  - `feature_importances()` — the fault detector's RandomForest importances
+    mapped onto named features, so an ML alarm is explainable.
+  - `estimator_agreement()` — spread, a disagreement flag, and an
+    inverse-variance **fused** estimate across models.
+  - `soc_report()` — SoC rendered with its ±kσ uncertainty band.
+- 11 tests (now **203** total).
+
+## [0.8.0] - 2026-09-06
+
+### Added
+- **Model-agnostic estimator framework** (`bms/estimation.py`):
+  - `SocEstimator` (universal `name`/`reset`/`run`) and `RecursiveSocEstimator`
+    (adds `update`/`soc`) structural protocols — the four built-in estimators
+    satisfy them unchanged.
+  - A registry — `make_soc_estimator(name, ...)`, `available_soc_estimators()`,
+    `register_soc_estimator(name)` — so SoC algorithms are chosen by name/config
+    instead of hard-wired classes.
+  - `FunctionSocEstimator` — wrap **any** trained model (scikit-learn, PyTorch,
+    an ONNX Runtime session, a lookup table) behind the standard interface.
+  - `Estimate` + `soc_estimate()` — read SoC **with 1-σ uncertainty** (from the
+    EKF/UKF covariance) where the model provides it.
+- 8 contract tests every registered estimator must pass (now **195** total).
+
+## [0.7.0] - 2026-09-06
+
+### Added
+- **Charging-method physics** (`bms/charging.py`): `ChargingModel`,
+  `ChargeProtocol`, `ChargeMethod` (AC L1/L2, DC fast/ultra), `ChargeResult`,
+  and `compare_methods()`. Quantifies effective C-rate, wall-to-battery
+  efficiency, cell heating, charge time, and lithium-plating risk for any
+  method. Headline (60 kWh pack, 20→90%): AC and 50 kW DC age the pack
+  negligibly (~3300 charges to 80% SoH), while 250 kW ultra-rapid (~4C)
+  reaches 80% in ~190 charges — roughly **17× faster wear**, driven by lithium
+  plating and heat; cold ultra-charging is worse still.
+- **Dynamic state-of-health** (`bms/aging.py`): `AgingModel`, `AgingState`,
+  `AgingParams`. Capacity fade + resistance growth from C-rate, temperature,
+  depth-of-discharge, plating, and a √-time calendar term; `apply_to_pack()`
+  writes SoH back onto the cells (idempotent) so the twin finally **ages**, and
+  `rul_cycles()` estimates remaining useful life. Closes the "no dynamic aging"
+  gap.
+- 8 regression tests (now **187** total).
+
+## [0.6.1] - 2026-09-06
+
+### Fixed
+- **Thermal-runaway injection** — `FaultInjector.apply_to_temperatures` now
+  models a runaway as a measured temperature that starts just above the onset
+  threshold and climbs with dwell time, so injecting `THERMAL_RUNAWAY` from a
+  normal temperature actually trips the detector (previously inert unless the
+  cell was already above the threshold).
+- **SOP default voltages** — `StateOfPower.calculate` evaluates terminal
+  voltages at the supplied `pack_current_A` (loaded) instead of no-load when
+  `cell_voltages_V` is omitted. Unchanged at `pack_current_A == 0`.
+- Doc drift: documented the `UNDERVOLTAGE` mode, the `PRECHARGE` state, and the
+  `contactor_state` / `precharge_elapsed_s` step keys; removed dead
+  `typing.Callable` / `dataclasses.field` imports.
+
+### Added
+- `BMSSupervisor.state_of_power()` — SOP from the supervisor's own state.
+
 ## [0.6.0] - 2026-09-05
 
 ### Fixed

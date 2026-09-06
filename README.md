@@ -2,21 +2,22 @@
 
 A research-grade, **AI-augmented Battery Management System (BMS) digital twin** for multi-cell
 Li-ion / solid-state packs. It unifies electrochemical modelling, thermal simulation, cell
-balancing, multi-method state-of-charge estimation, hybrid fault detection, lifetime accounting,
-electrochemical diagnostics, and a physics-based EV range predictor into one reproducible,
-fully-tested framework — every module is independently usable and exercised by unit tests.
+balancing, **model-agnostic** state estimation (SoC **and** online SoH with uncertainty), hybrid
+fault detection, charging-method physics, dynamic aging, SoH-aware control, electrochemical
+diagnostics, an EV range predictor, and a plain-language interpretability layer — into one
+reproducible, fully-tested framework where every module is independently usable.
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.6.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-0.10.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
-  <img alt="tests" src="https://img.shields.io/badge/tests-176%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-222%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 176/176 unit tests pass • 18 library modules • 7 chemistries • 12 figures •
-> 5-tab Streamlit dashboard + EV range predictor • executed demo notebook.
+> **Status.** ✅ 222/222 unit tests pass • 25 library modules • 7 chemistries • ruff-clean •
+> CI on Python 3.10–3.13 • Streamlit dashboard + EV range predictor + executed demo notebook.
 
 ---
 
@@ -30,7 +31,6 @@ fully-tested framework — every module is independently usable and exercised by
 - [Quickstart](#quickstart)
 - [Design highlights](#design-highlights)
 - [Interactive dashboard](#interactive-dashboard)
-- [Reproducibility](#reproducibility)
 - [Testing](#testing)
 - [Roadmap](#roadmap)
 - [License](#license)
@@ -42,28 +42,36 @@ fully-tested framework — every module is independently usable and exercised by
 - **Seven cell chemistries** — NMC, LFP, LMFP, LTO, NCA, LMO, and a solid-state (SSB) model,
   each with its own OCV–SOC table, Arrhenius resistance scaling, voltage window, runaway
   temperature, and default ECM. Switch chemistry with a single argument.
-- **Configurable pack topology** — arbitrary series × parallel (`SxP`) packs with realistic
-  per-cell manufacturing scatter (capacity, R₀, initial SOC).
-- **Four SOC estimators, benchmarked** — Coulomb counter, Extended Kalman Filter,
-  Unscented Kalman Filter, and an LSTM implemented from scratch in NumPy.
-- **Hybrid fault detection** — deterministic rule layer (sole trip authority) OR-fused with a
-  Random-Forest ML layer (advisory), across five failure modes.
-- **Intelligent supervisor** — a state machine that gates faults, dynamically selects a
-  balancing strategy, drives predictive cooling, and supports both current- and power-mode loads.
-- **State of Power + CAN telemetry** — multi-horizon 2 s / 10 s / 30 s traction and
-  regen limits, plus DBC-compatible classic-CAN broadcast frames for pack, cell, thermal,
-  and SOP telemetry.
-- **HV pre-charge sequencing** — open → pre-charge → closed contactor control gates
-  current until the measured DC link reaches the configured safe voltage ratio.
-- **Lifetime accounting** — a battery passport tracking equivalent full cycles, depth-weighted
-  cycles, round-trip efficiency, and energy throughput.
-- **Electrochemical diagnostics** — DVA/ICA aging fingerprints, simulated EIS (Nyquist), and a
-  C-rate capability map over the SOC × temperature envelope.
-- **Physics-based EV range predictor** — first-principles traction/regen/HVAC/accessory model
-  with weather, traffic, road-quality, and battery-temperature coupling, plus vehicle and route
-  presets (including India-specific drive cycles, city routes, and seasonal weather).
-- **Reproducible** — every randomness source is seeded; the demo notebook and all 12 figures
-  regenerate deterministically.
+- **Configurable pack topology** — arbitrary series × parallel (`SxP`) packs with per-cell
+  manufacturing scatter and a shared-node parallel model (circulating currents between mismatched
+  cells, not just averaged voltages).
+- **Model-agnostic estimator framework** — `SocEstimator` / `RecursiveSocEstimator` protocols, a
+  registry (`make_soc_estimator("ukf")`), a bring-your-own-model adapter (wrap any scikit-learn /
+  PyTorch / ONNX model), and `Estimate` values carrying **1-σ uncertainty**.
+- **Five SoC estimators + online SoH** — Coulomb counter, EKF, UKF, NumPy LSTM, and a **joint EKF
+  that estimates SoC *and* capacity together** (`soh = Q/Q₀` with uncertainty).
+- **Charging-method physics + dynamic aging** — quantify AC vs DC and fast vs slow charging into
+  C-rate, efficiency, cell heating, lithium-plating risk, and capacity/resistance fade; the pack
+  **actually ages** and feeds SoH/RUL.
+- **SoH-aware control** — the supervisor derates current as the pack ages and caps charge current
+  below the lithium-plating limit — closing the loop from charging physics + SoH estimate to
+  control action.
+- **Hybrid fault detection** — deterministic rule layer (sole trip authority; overcharge,
+  undervoltage, short-circuit, thermal-runaway) OR-fused with an advisory Random-Forest layer.
+- **Mechanical / gas fault detection** — internal pressure, swelling, gas venting, and
+  microfracture internal shorts; pressure/gas cross their thresholds **~17 s before** the
+  temperature-runaway rule in the reference ramp (early warning that temperature alone misses).
+- **Intelligent supervisor** — IDLE → PRECHARGE → OPERATING → BALANCING → FAULT → SHUTDOWN state
+  machine with HV pre-charge contactor sequencing, predictive cooling, and current- or power-mode
+  loads.
+- **State of Power + CAN telemetry** — multi-horizon (2 s / 10 s / 30 s) traction/regen limits and
+  DBC-compatible classic-CAN broadcast frames.
+- **Interpretability layer** — plain-language state/charge summaries, named RandomForest feature
+  importances, multi-estimator agreement + inverse-variance fusion, and SoC ±kσ bands.
+- **Diagnostics + EV range** — DVA/ICA fingerprints, simulated EIS (Nyquist), C-rate map, and a
+  first-principles range predictor with weather/traffic/road coupling (India presets included).
+- **Reproducible & tested** — every randomness source is seeded; 208 unit tests; pip-installable
+  with GitHub Actions CI.
 
 ---
 
@@ -88,37 +96,40 @@ Each chemistry lives in `bms/chemistry.py` (`CHEMISTRY_PROPS`); request one with
 ## Project structure
 
 ```
-bms_digital_twin/
-├── bms/                       # Library (16 modules)
-│   ├── chemistry.py           # 7 chemistries: OCV tables, Arrhenius, voltage limits, defaults
+battery-management-system-digital-twin/
+├── bms/                       # Library (25 modules)
+│   ├── chemistry.py           # 7 chemistries: OCV tables, Arrhenius, limits, defaults
 │   ├── ocv_soc.py             # OCV–SOC characteristic (PCHIP interpolant, temp coefficient)
 │   ├── ecm.py                 # 2-RC equivalent-circuit model, Arrhenius scaling, parameter ID
-│   ├── pack.py                # Series × parallel pack with manufacturing scatter
-│   ├── thermal.py             # 1-D FDM thermal model + PID + predictive cooling controller
+│   ├── pack.py                # Series × parallel pack, scatter, shared-node parallel currents
+│   ├── thermal.py             # 1-D FDM thermal model (CFL-guarded) + PID / predictive cooling
 │   ├── balancing.py           # Passive / switched-capacitor / inductor balancing + comparison
 │   ├── soc_estimators.py      # Coulomb counter, EKF, UKF, NumPy LSTM + benchmark harness
+│   ├── soh_estimator.py       # Joint EKF: online SoC + capacity (SoH) with uncertainty
+│   ├── estimation.py          # Model-agnostic protocols + registry + BYO adapter + Estimate
 │   ├── faults.py              # Fault injection + hybrid rule/ML detector + feature buffer
+│   ├── mechanics.py           # Pressure / gas / swelling, venting, internal-short detection
 │   ├── _train_detector.py     # Synthetic labelled-data generator for the ML detector
 │   ├── fmea.py                # FMEA / RPN table + RUL estimator (capacity & resistance fade)
-│   ├── control.py             # Supervisory state machine (BMSSupervisor)
+│   ├── charging.py            # AC/DC, fast/slow charging physics + plating limit
+│   ├── aging.py               # Dynamic capacity fade + resistance growth; SoH feedback to pack
+│   ├── control.py             # Supervisor state machine + precharge + SoH-aware control
 │   ├── passport.py            # Battery passport — lifetime EFC / DWC / RTE / throughput
+│   ├── sop.py                 # State of Power — multi-horizon traction/regen limits
+│   ├── can.py                 # Classic CAN 2.0B telemetry (encode / decode)
 │   ├── dva.py                 # Differential & incremental capacity analysis (dV/dQ, dQ/dV)
 │   ├── diagnostics.py         # EIS (Nyquist) simulation + C-rate capability map
 │   ├── range_predictor.py     # Physics-based EV range predictor (weather/traffic/road coupling)
-│   └── data.py                # Load / CC-CV / power profiles, NASA-like & ageing datasets
-├── notebooks/
-│   └── BMS_Digital_Twin_Demo.ipynb   # End-to-end executed walkthrough
-├── app/
-│   └── streamlit_app.py       # Live multi-tab dashboard + range predictor
-├── scripts/
-│   └── build_notebook.py      # Reproducible notebook generator
-├── tests/
-│   └── test_bms.py            # 164 unit tests
+│   ├── interpret.py           # Plain-language explanations, feature importances, fusion
+│   ├── data.py                # Load / CC-CV / power profiles, NASA-like & ageing datasets
+│   └── datasets.py            # Real-dataset loaders (LG / NASA) + estimator leaderboard
+├── app/streamlit_app.py       # Live multi-tab dashboard + range predictor
+├── notebooks/                 # Executed end-to-end demo
+├── scripts/build_notebook.py  # Reproducible notebook generator
+├── tests/test_bms.py          # 208 unit tests
 ├── figures/                   # 12 PNGs produced by the notebook
-├── docs/
-│   └── architecture.md        # Layered-design notes & invariants
-├── requirements.txt
-└── LICENSE                    # MIT
+├── docs/architecture.md       # Layered-design notes & invariants
+├── pyproject.toml • CHANGELOG.md • CONTRIBUTING.md • requirements.txt • LICENSE (MIT)
 ```
 
 ---
@@ -128,28 +139,34 @@ bms_digital_twin/
 | Capability | Module(s) |
 |---|---|
 | Cell chemistry library (7 chemistries) | `bms/chemistry.py` |
-| OCV–SOC characteristic + temperature coefficient | `bms/ocv_soc.py` |
-| Second-order RC ECM + parameter identification | `bms/ecm.py` |
-| Series × parallel pack with scatter | `bms/pack.py` |
-| 1-D FDM thermal model + PID / predictive cooling | `bms/thermal.py` |
+| OCV–SOC + temperature coefficient | `bms/ocv_soc.py` |
+| Second-order RC ECM + parameter ID | `bms/ecm.py` |
+| Series × parallel pack (shared-node currents) | `bms/pack.py` |
+| 1-D FDM thermal + PID / predictive cooling | `bms/thermal.py` |
 | Three balancing strategies + comparison | `bms/balancing.py` |
-| SOC benchmark — CC / EKF / UKF / LSTM | `bms/soc_estimators.py` |
+| SoC estimators — CC / EKF / UKF / LSTM | `bms/soc_estimators.py` |
+| **Online SoH — joint EKF (SoC + capacity)** | `bms/soh_estimator.py` |
+| **Model-agnostic estimator registry + BYO + uncertainty** | `bms/estimation.py` |
 | Fault injection + hybrid (rule + ML) detection | `bms/faults.py`, `bms/_train_detector.py` |
+| **Mechanical / gas faults — pressure, swelling, venting, internal short** | `bms/mechanics.py` |
 | FMEA with S/O/D/RPN + RUL | `bms/fmea.py` |
-| Supervisory control state machine | `bms/control.py` |
+| **Charging-method physics (AC/DC, fast/slow) + plating** | `bms/charging.py` |
+| **Dynamic aging — capacity fade + resistance growth** | `bms/aging.py` |
+| Supervisor + precharge + **SoH-aware control** | `bms/control.py` |
 | Lifetime accounting (passport) | `bms/passport.py` |
-| Aging diagnostics — DVA / ICA | `bms/dva.py` |
-| EIS spectrum + C-rate capability map | `bms/diagnostics.py` |
+| State of Power (multi-horizon limits) | `bms/sop.py` |
+| CAN 2.0B telemetry | `bms/can.py` |
+| DVA / ICA, EIS, C-rate map | `bms/dva.py`, `bms/diagnostics.py` |
 | Physics-based EV range prediction | `bms/range_predictor.py` |
-| Synthetic load / power / ageing datasets | `bms/data.py` |
-| Visualisation | `notebooks/`, `app/streamlit_app.py` |
-| Modular, tested, reproducible | `tests/`, `scripts/build_notebook.py` |
+| **Interpretability — explanations, importances, fusion** | `bms/interpret.py` |
+| **Real-dataset validation — loaders + estimator leaderboard** | `bms/datasets.py` |
+| Visualisation | `app/streamlit_app.py`, `notebooks/` |
 
 ---
 
 ## Installation
 
-Tested on Python 3.10–3.13. The package is pip-installable:
+Tested on Python 3.10–3.13. Pip-installable:
 
 ```bash
 pip install -e .                  # core library only
@@ -157,90 +174,77 @@ pip install -e ".[app,notebook]"  # + Streamlit dashboard and notebook tooling
 pip install -e ".[dev]"           # + pytest and ruff (for contributors)
 ```
 
-Core runtime dependencies are intentionally minimal (numpy, scipy, pandas,
-scikit-learn, filterpy); the `app` and `notebook` extras add streamlit/plotly
-and jupyter/matplotlib respectively. For just the notebook/dashboard workflow,
-`pip install -r requirements.txt` still works.
+Core runtime dependencies are intentionally minimal (numpy, scipy, pandas, scikit-learn, filterpy);
+the `app` / `notebook` extras add streamlit/plotly and jupyter/matplotlib.
 
-**Why no PyTorch / TensorFlow?** The LSTM SOC estimator is implemented from scratch in NumPy —
-including BPTT and Adam — to keep dependencies minimal and to make the recurrent gradient flow
-legible for review. Swapping it for `torch.nn.LSTM` is a ~30-line change.
+**Why no PyTorch / TensorFlow?** The LSTM SoC estimator is implemented from scratch in NumPy
+(including BPTT and Adam) to keep dependencies minimal — and you can still plug a Torch/ONNX model
+in via `FunctionSocEstimator` (see below).
 
 ---
 
 ## Quickstart
 
-### 1. Run the test suite
-
-```bash
-pytest tests/ -q          # 164 tests
-```
-
-### 2. Walk through the demo notebook
-
-```bash
-jupyter lab notebooks/BMS_Digital_Twin_Demo.ipynb
-```
-
-The pre-executed copy already contains every figure. To regenerate from scratch:
-
-```bash
-python scripts/build_notebook.py
-jupyter nbconvert --to notebook --execute --inplace notebooks/BMS_Digital_Twin_Demo.ipynb
-```
-
-### 3. Launch the live dashboard
-
-```bash
-streamlit run app/streamlit_app.py
-```
-
-### 4. Use the package as a library
+### Simulate a pack
 
 ```python
 import bms
 
-# A 6S2P LFP pack, with thermal model and a (rule-only until fitted) fault detector
 pack     = bms.BatteryPack(bms.PackConfig(n_cells=6, n_parallel=2, chemistry="lfp", seed=42))
 thermal  = bms.ThermalModel(n_cells=6)
 detector = bms.HybridFaultDetector(chemistry="lfp")
 sup      = bms.BMSSupervisor(pack, thermal, detector)
 
-i_load = bms.generate_load_profile(60, mode="drive", c_rate=1.0, capacity_Ah=3.2)
-for k, ii in enumerate(i_load):
+for k, ii in enumerate(bms.generate_load_profile(60, mode="drive", c_rate=1.0, capacity_Ah=3.2)):
     out = sup.step(float(ii), 1.0, k=k)
-    print(out["state"], "SOC=", out["soc"].round(3))
 
-print(sup.passport.summary())          # lifetime EFC / RTE / throughput
+print(sup.passport.summary())            # lifetime EFC / RTE / throughput
+print(bms.explain_state(out))            # plain-language state summary
 ```
 
-### 5. Predict EV range
+### Swap SoC estimators by name (model-agnostic) + uncertainty
+
+```python
+est = bms.make_soc_estimator("ukf", params=bms.ECMParameters(), ocv_curve=bms.OCVSOC())
+est.reset(0.9); est.run(currents, voltages, dt=1.0)
+print(bms.soc_estimate(est))             # Estimate(value=..., sigma=...)  ← 1-σ uncertainty
+
+# Bring any trained model (sklearn / PyTorch / ONNX):
+byo = bms.FunctionSocEstimator(my_model.predict, name="onnx")
+```
+
+### Online SoH (joint EKF: SoC + capacity)
+
+```python
+soh = bms.make_soc_estimator("joint_ekf", capacity_Ah=2.3)
+soh.reset(0.95); soh.run(currents, voltages, dt=1.0)
+print(f"SoH {soh.soh*100:.1f}% ± {soh.soh_uncertainty_1sigma*100:.1f}%,  Q={soh.capacity_Ah:.3f} Ah")
+```
+
+### Charging physics + dynamic aging
+
+```python
+from bms import ChargingModel, ChargeProtocol, ChargeMethod, compare_methods
+print(compare_methods(pack_energy_kWh=60, q_nom_Ah=2.3, r0_ohm=0.025, v_nom=3.7))
+# -> per method: C-rate, charge time, efficiency, peak temp, plating risk, fade/session
+```
+
+### SoH-aware control
+
+```python
+cfg = bms.SupervisorConfig(soh_aware=True)     # derate + plating cap
+sup = bms.BMSSupervisor(pack, thermal, detector, config=cfg)
+sup.set_soh(0.75)                              # feed live SoH from the joint EKF / AgingModel
+out = sup.step(-30.0, 1.0)                      # aggressive cold charge → capped below plating limit
+```
+
+### EV range & diagnostics
 
 ```python
 from bms import RangePredictor, VehicleParams, WeatherConditions, ROUTE_PROFILES
-
-pred   = RangePredictor(VehicleParams.suv())
-result = pred.predict(
-    pack_energy_Wh=80_000.0, chemistry="nmc",
-    route=ROUTE_PROFILES["wltp"], weather=WeatherConditions.cold_winter(),
-)
-print(f"{result.estimated_range_km:.0f} km, completable={result.route_completable}, "
-      f"weather penalty={result.weather_penalty_pct:.1f}%")
-```
-
-### 6. Aging & impedance diagnostics
-
-```python
-from bms import (synthetic_discharge_for_dva, compute_dva, compute_ica,
-                 ECMParameters, simulate_eis, compute_crate_map)
-
-q, v       = synthetic_discharge_for_dva("lfp")
-q_ax, dva  = compute_dva(q, v)          # dV/dQ aging fingerprint
-v_ax, ica  = compute_ica(q, v)          # dQ/dV — ideal for flat-plateau LFP
-
-p              = ECMParameters.for_nmc()
-f, z_re, z_im  = simulate_eis(p, temperature_C=-10.0)        # Nyquist spectrum
-soc, T, cmap   = compute_crate_map(p, chemistry="nmc")        # power envelope
+r = RangePredictor(VehicleParams.suv()).predict(80_000.0, "nmc",
+        ROUTE_PROFILES["wltp"], WeatherConditions.cold_winter())
+print(f"{r.estimated_range_km:.0f} km (weather penalty {r.weather_penalty_pct:.1f}%)")
 ```
 
 ---
@@ -248,138 +252,69 @@ soc, T, cmap   = compute_crate_map(p, chemistry="nmc")        # power envelope
 ## Design highlights
 
 ### Physics
+- **OCV–SOC**: monotonic PCHIP interpolant per chemistry with a `temp_coeff_V_per_K` shift.
+- **ECM**: 2-RC discrete recurrence with a closed-form EKF Jacobian; `R0` Arrhenius-scaled by temperature.
+- **Pack**: per-cell scatter; parallel groups share one terminal node solved from KCL, so mismatched
+  cells exchange **circulating currents**.
+- **Thermal**: 1-D FDM rod, CFL-guarded (auto sub-steps for any `dt`), with irreversible heat
+  `Q = |I·(OCV − Vₜ)|` — correct for both charge and discharge.
 
-- **OCV–SOC**: PCHIP interpolant per chemistry (e.g. NMC 3.0 V → 4.2 V; LFP's characteristic
-  flat plateau). Smooth, monotonic, with a configurable `temp_coeff_V_per_K` shift.
-- **ECM**: 2-RC discrete-time recurrence with `a₁,₂ = exp(−dt/τ₁,₂)`; closed-form Jacobian used
-  by the EKF. `R0` scales with temperature via a per-chemistry Arrhenius factor.
-- **Parameter ID**: `scipy.optimize.least_squares` fits ECM parameters to a noisy I/V trace,
-  driving voltage RMSE down toward the noise floor on a pulse profile.
-- **Pack**: each cell carries independent capacity, R₀, and initial-SOC scatter; `n_cells`
-  series groups × `n_parallel` cells per group.
-- **Thermal**: 1-D finite-difference rod with cell-to-cell conduction and a time-varying
-  convective coefficient modulated by a PID / predictive cooling controller.
-  Heat generation `Q = i²R₀ + i·max(OCV − Vₜ, 0)` (ohmic + over-potential).
+### Estimation, SoH & the model-agnostic layer
+- `SocEstimator` (batch `run`) and `RecursiveSocEstimator` (adds `update`/`soc`) protocols; the
+  built-ins satisfy them unchanged. Pick any by name via the registry, or wrap your own model with
+  `FunctionSocEstimator`. `soc_estimate()` returns a value **with 1-σ uncertainty** from the filter
+  covariance. The **joint EKF** augments the state with capacity to track SoH online.
 
-### SOC estimators (representative results from the demo notebook)
+### Charging & aging (put a number on it)
+- Effective C-rate ≈ `power_kW / pack_energy_kWh`; wall-to-battery efficiency (OBC loss for AC, higher
+  I²R heat for DC); cell heating ∝ C²; a temperature/SoC-dependent **lithium-plating** limit. The
+  `AgingModel` accumulates capacity fade + resistance growth from C-rate, temperature, DoD, plating,
+  and a √-time calendar term, and writes SoH back onto the cells.
 
-| Estimator | Accuracy @ ~5 mV noise | Robust to current bias? |
-|---|---|---|
-| Coulomb counting | drifts with bias | ❌ |
-| EKF | sub-percent SOC | ✅ |
-| UKF (filterpy) | sub-percent SOC | ✅ |
-| LSTM (NumPy) | low single-digit % | depends on training distribution |
+### Fault detection (rule + ML, rule-only trip authority)
+Rules cover overcharge, undervoltage, short-circuit (over-current), and thermal runaway; only the rule
+layer can trip. A `RandomForestClassifier` adds advisory drift detection — with `feature_importances()`
+to explain *why* it fired.
 
-### Balancing trade-offs
-
-Three strategies — `PassiveBalancer`, `SwitchedCapacitorBalancer`, `InductorBalancer` —
-trade balancing speed against energy lost as heat. The active inductor balancer is the fastest
-and most efficient; passive resistive bleed is simplest but dissipates the most energy.
-`compare_balancers(...)` runs all three head-to-head.
-
-### Fault detection: rule + ML, with rule-only trip authority
-
-Five failure modes (overcharge, short circuit, thermal runaway, sensor dropout, sensor bias)
-are simulated and labelled. The detector OR-fuses two layers:
-
-- **Rule layer** — deterministic thresholds on V, T. *Only this layer can trip the contactor*,
-  matching functional-safety convention and preventing ML misclassifications from causing
-  nuisance shutdowns.
-- **ML layer** — a `RandomForestClassifier` with a confidence threshold. Surfaces subtle drift
-  faults (slow sensor bias) within nominal V/T limits — but only as advisory warnings.
-
-### Supervisor (state machine)
-
-```
-       request ≠ 0                    rule alarms ≥ N
-IDLE ──────────────────► OPERATING ──────────────────► FAULT ──► (manual reset)
-  ▲                          ▲
-  │ imbalance < 0.5 %        │ imbalance > 0.5 %
-  └────────── BALANCING ◄────┘
-```
-
-The supervisor accepts either a requested **current** or a requested **power** (converted via the
-instantaneous pack voltage, then de-rated against configurable power limits), reports
-`peak_power_W` capability at the current SOC/temperature, drives predictive cooling, selects a
-balancing strategy by imbalance magnitude, and updates the battery passport every cycle.
-
-### Battery passport
-
-`bms.BatteryPassport` (exposed as `supervisor.passport`) accumulates, over the pack's life:
-**equivalent full cycles** (discharge Ah ÷ nominal Ah), **depth-weighted cycles**
-(Σ|ΔSOC|/2 half-cycle approximation), **round-trip efficiency**, and total charge/discharge
-energy and time. `summary()` returns the full snapshot dict.
-
-### Aging & impedance diagnostics
-
-- **DVA (dV/dQ)** and **ICA (dQ/dV)** with Savitzky-Golay smoothing — peak shifts and height
-  loss fingerprint capacity fade and loss of active material; ICA is especially diagnostic for
-  flat-plateau LFP/LMFP.
-- **EIS** — the 2-RC ECM (plus a Warburg diffusion tail) maps onto an impedance spectrum;
-  `simulate_eis` returns a Nyquist curve with the R₀ intercept, two depressed semicircles, and a
-  45° diffusion tail.
-- **C-rate capability map** — maximum continuous discharge C-rate over a SOC × temperature grid,
-  exposing where cold or low SOC limits power.
-
-### EV range predictor
-
-A first-principles consumption model — traction (aero + rolling + grade), stop-and-go with
-regen, HVAC (temperature-driven, COP-modelled), and constant accessory load — coupled to the
-battery via temperature-dependent capacity and efficiency derating. Weather affects air density
-(altitude), headwind, rolling resistance, and HVAC load. Ships with vehicle presets
-(compact / sedan / SUV / truck plus India e-scooter / e-motorcycle / e-moped), drive-cycle
-profiles (WLTP, city, highway, mixed, mountain, MIDC, India NH), India city routes, and seasonal
-weather presets.
+### Interpretability
+`explain_state()` / `explain_charge()` (plain language), `feature_importances()` (named), 
+`estimator_agreement()` (spread + inverse-variance **fused** estimate), `soc_report()` (±kσ band).
 
 ---
 
 ## Interactive dashboard
 
-`streamlit run app/streamlit_app.py` opens a two-mode app:
-
-- **🔬 Simulation** — chemistry selector, series × parallel topology, current- or power-mode
-  load, and sidebar fault injection, with five tabs:
-  **📊 Live Signals** · **🔬 SoH & Aging** · **📋 Battery Passport** · **🔭 Diagnostics** ·
-  **⚠ Fault Analysis**.
-- **🚗 Range Predictor** — interactive range estimation across vehicles, routes, and weather,
-  with a per-chemistry comparison view.
-
-All charts are Plotly. This is the closest equivalent to the SCADA view a BMS engineer would use.
-
----
-
-## Reproducibility
-
-Every randomness source is seeded — `PackConfig.seed`, `np.random.default_rng(seed)` for noise,
-`generate_load_profile(seed=…)`, `RandomForestClassifier(random_state=…)`, and
-`LSTMEstimator(seed=…)`. Re-running `scripts/build_notebook.py` followed by
-`nbconvert --execute` reproduces every figure deterministically on the same NumPy/SciPy versions.
+`streamlit run app/streamlit_app.py` opens a two-mode Plotly app: **🔬 Simulation** (chemistry, SxP
+topology, current/power load, fault injection; tabs for Live Signals, SoH & Aging, Battery Passport,
+Diagnostics, Fault Analysis) and **🚗 Range Predictor**.
 
 ---
 
 ## Testing
 
 ```bash
-pytest tests/ -q          # 164 tests, ~35 s
+pytest -q          # 222 tests, ~15 s
+ruff check .       # lint (library is clean)
 ```
 
-The suite covers OCV/ECM correctness and parameter recovery, pack scatter and series/parallel
-bookkeeping, thermal stability, balancer energy monotonicity, estimator accuracy bounds, fault
-trip authority, FMEA/RUL, supervisor state transitions, passport accounting, DVA/ICA/EIS shape
-invariants, and range-predictor energy conservation.
+Covers OCV/ECM correctness and parameter recovery, pack/parallel bookkeeping, thermal stability,
+balancer energy monotonicity, estimator accuracy + the model-agnostic contract, online SoH
+convergence, charging/aging behaviour, fault trip authority, supervisor transitions + SoH-aware
+limiting, precharge, passport, SoP, CAN round-trips, DVA/ICA/EIS invariants, interpretability, and
+range-predictor energy conservation.
 
 ---
 
 ## Roadmap
 
-- **Reinforcement learning** for adaptive cooling-duty policies — the supervisor's `step` already
-  returns a reward-shaped state dict.
-- **Cloud / streaming integration** — every signal is a `pandas.DataFrame`; emitting to MQTT,
-  Kafka, or a Delta Lake table is a one-line `to_*` call.
-- **PyTorch LSTM** — drop-in replacement for `bms.LSTMEstimator`, same I/O contract.
+- **Real data** — loaders + an estimator leaderboard ship in `bms/datasets.py`; drop in the
+  LG-18650 / NASA PCoE files (see `DATASET_SOURCES`) and it runs unchanged.
+- **Online resistance SoH** — estimate R₀ growth alongside capacity.
+- **Dashboard expansion** — surface charging, aging, online SoH, SoP, and interpretability.
+- **Publish to PyPI**; add rendered API docs.
 
 ---
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT — see [`LICENSE`](LICENSE). © 2026 Akash Preetham.

@@ -4,6 +4,7 @@ Fault simulation, injection, and hybrid (rule + ML) detection.
 Failure modes
 -------------
 * OVERCHARGE       — cell driven above 4.25 V, e.g. by a runaway charger.
+* UNDERVOLTAGE     — cell sags below the chemistry minimum (deep discharge).
 * SHORT_CIRCUIT    — internal short collapses voltage and dumps current.
 * THERMAL_RUNAWAY  — exothermic side reactions trigger when T exceeds a
                      threshold; once entered, T grows super-linearly.
@@ -32,9 +33,8 @@ RandomForest.  This gives the ML model visibility into slow-onset anomalies
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -52,6 +52,11 @@ class FaultMode(str, Enum):
     THERMAL_RUNAWAY = "thermal_runaway"
     SENSOR_DROPOUT = "sensor_dropout"
     SENSOR_BIAS = "sensor_bias"
+    # Mechanical / gas failure modes (see bms.mechanics).
+    GAS_VENTING = "gas_venting"
+    INTERNAL_SHORT = "internal_short"
+    SWELLING = "swelling"
+    ELECTROLYTE_LEAK = "electrolyte_leak"
 
 
 @dataclass
@@ -99,8 +104,15 @@ class FaultInjector:
         for s in self.specs:
             if not s.is_active(k):
                 continue
-            if s.mode == FaultMode.THERMAL_RUNAWAY and out[s.cell_index] > self.THERMAL_RUNAWAY_T:
-                out[s.cell_index] += 0.5 * s.severity * (out[s.cell_index] - self.THERMAL_RUNAWAY_T) * dt
+            if s.mode == FaultMode.THERMAL_RUNAWAY:
+                # Model a runaway as a measured temperature that starts just
+                # above the onset threshold and climbs with dwell time, so it
+                # reliably trips the rule detector.  (The previous form only
+                # grew an *already* super-threshold temperature, so injecting
+                # runaway from a normal temperature was inert.)
+                tau = max(0, k - s.start_step)
+                ramp = self.THERMAL_RUNAWAY_T + 1.0 + 0.5 * s.severity * tau * dt
+                out[s.cell_index] = max(float(out[s.cell_index]), ramp)
         return out
 
     def apply_to_voltage_meas(self, v_meas: np.ndarray, k: int) -> np.ndarray:
