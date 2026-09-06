@@ -200,3 +200,12 @@ def _make_ukf(*, params=None, ocv_curve=None, **_):
 def _make_lstm(*, seed: int = 0, hidden_size: int = 16, **_):
     from .soc_estimators import LSTMEstimator
     return LSTMEstimator(hidden_size=hidden_size, seed=seed)
+
+
+@register_soc_estimator("joint_ekf")
+def _make_joint_ekf(*, params=None, ocv_curve=None, capacity_Ah: float = 2.3, **_):
+    from .ecm import ECMParameters
+    from .ocv_soc import OCVSOC
+    from .soh_estimator import JointEKFSoH
+    return JointEKFSoH(params=params or ECMParameters(Q_nom_Ah=capacity_Ah),
+                       ocv_curve=ocv_curve or OCVSOC(), q_nominal_Ah=capacity_Ah)

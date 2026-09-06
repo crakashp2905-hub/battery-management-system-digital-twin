@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-09-06
+
+### Added
+- **Online state-of-health** (`bms/soh_estimator.py`): `JointEKFSoH`, a joint
+  Extended Kalman Filter estimating SoC **and** usable capacity together
+  (state = [SoC, V_RC1, V_RC2, Q]). It tracks capacity as the cell ages,
+  exposing a live `soh = Q/Q_nominal` with 1-σ uncertainty, and converges from a
+  beginning-of-life guess toward the true aged capacity within a cycle.
+  Registered as `"joint_ekf"` in the estimator registry; pairs with the offline
+  `AgingModel` (which *predicts* fade — this *estimates* it from data).
+- **Interpretability layer** (`bms/interpret.py`):
+  - `explain_state()` / `explain_charge()` — plain-language summaries of a
+    supervisor step or a charge session.
+  - `feature_importances()` — the fault detector's RandomForest importances
+    mapped onto named features, so an ML alarm is explainable.
+  - `estimator_agreement()` — spread, a disagreement flag, and an
+    inverse-variance **fused** estimate across models.
+  - `soc_report()` — SoC rendered with its ±kσ uncertainty band.
+- 11 tests (now **203** total).
+
 ## [0.8.0] - 2026-09-06
 
 ### Added

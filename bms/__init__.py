@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 from .aging import AgingModel, AgingParams, AgingState
 from .balancing import (
@@ -80,6 +80,14 @@ from .faults import (
     extract_features,
 )
 from .fmea import build_fmea_table, estimate_rul, estimate_rul_with_resistance
+from .interpret import (
+    FEATURE_NAMES,
+    estimator_agreement,
+    explain_charge,
+    explain_state,
+    feature_importances,
+    soc_report,
+)
 from .ocv_soc import OCVSOC
 from .pack import BatteryPack, PackConfig
 from .passport import BatteryPassport
@@ -101,6 +109,7 @@ from .soc_estimators import (
     UKFEstimator,
     benchmark_estimators,
 )
+from .soh_estimator import JointEKFSoH
 from .sop import SOPConfig, SOPLimit, StateOfPower
 from .thermal import PIDController, PredictiveCoolingController, ThermalModel, ThermalParameters
 
@@ -136,4 +145,7 @@ __all__ = [
     "Estimate", "SocEstimator", "RecursiveSocEstimator", "FunctionSocEstimator",
     "soc_estimate", "make_soc_estimator", "available_soc_estimators",
     "register_soc_estimator",
+    "JointEKFSoH",
+    "FEATURE_NAMES", "feature_importances", "estimator_agreement", "soc_report",
+    "explain_state", "explain_charge",
 ]
