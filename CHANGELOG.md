@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-09-06
+
+### Added
+- **Model-agnostic estimator framework** (`bms/estimation.py`):
+  - `SocEstimator` (universal `name`/`reset`/`run`) and `RecursiveSocEstimator`
+    (adds `update`/`soc`) structural protocols — the four built-in estimators
+    satisfy them unchanged.
+  - A registry — `make_soc_estimator(name, ...)`, `available_soc_estimators()`,
+    `register_soc_estimator(name)` — so SoC algorithms are chosen by name/config
+    instead of hard-wired classes.
+  - `FunctionSocEstimator` — wrap **any** trained model (scikit-learn, PyTorch,
+    an ONNX Runtime session, a lookup table) behind the standard interface.
+  - `Estimate` + `soc_estimate()` — read SoC **with 1-σ uncertainty** (from the
+    EKF/UKF covariance) where the model provides it.
+- 8 contract tests every registered estimator must pass (now **195** total).
+
 ## [0.7.0] - 2026-09-06
 
 ### Added

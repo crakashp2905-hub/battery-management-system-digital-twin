@@ -1688,3 +1688,75 @@ class TestChargingAging:
         soh_dc = soh_after(bms.ChargeMethod.DC_ULTRA, 300)
         assert soh_ac > 0.95            # slow charging barely ages over 300 charges
         assert soh_dc < soh_ac          # ultra-rapid degrades markedly more
+
+
+# ----------------------------------------------------------------------
+# Model-agnostic estimator registry / protocol
+# ----------------------------------------------------------------------
+class TestEstimatorRegistry:
+    @staticmethod
+    def _trace():
+        p = bms.ECMParameters()
+        ocv = bms.OCVSOC()
+        ecm = bms.SecondOrderECM(params=p, ocv_curve=ocv)
+        ecm.reset(0.8)
+        current = np.full(200, 1.0)
+        sim = ecm.simulate(current, dt=1.0)
+        return p, ocv, current, sim["v_terminal"], sim["soc"]
+
+    def test_registry_lists_builtins(self):
+        assert {"coulomb", "ekf", "ukf", "lstm"} <= set(bms.available_soc_estimators())
+
+    def test_all_registered_satisfy_protocol(self):
+        p, ocv, *_ = self._trace()
+        for name in bms.available_soc_estimators():
+            est = bms.make_soc_estimator(name, params=p, ocv_curve=ocv, capacity_Ah=2.3)
+            assert isinstance(est, bms.SocEstimator), name
+
+    def test_recursive_vs_batch_distinction(self):
+        p, ocv, *_ = self._trace()
+        for name in ("coulomb", "ekf", "ukf"):
+            est = bms.make_soc_estimator(name, params=p, ocv_curve=ocv)
+            assert isinstance(est, bms.RecursiveSocEstimator), name
+        # The sequence LSTM is a SocEstimator but not a recursive one.
+        lstm = bms.make_soc_estimator("lstm")
+        assert isinstance(lstm, bms.SocEstimator)
+        assert not isinstance(lstm, bms.RecursiveSocEstimator)
+
+    def test_recursive_estimators_track_and_stay_bounded(self):
+        p, ocv, current, voltage, truth = self._trace()
+        for name in ("coulomb", "ekf", "ukf"):
+            est = bms.make_soc_estimator(name, params=p, ocv_curve=ocv, capacity_Ah=2.3)
+            est.reset(0.8)
+            out = est.run(current, voltage, 1.0)
+            assert np.all((out >= 0.0) & (out <= 1.0)), name
+            assert abs(out[-1] - truth[-1]) < 0.05, name
+
+    def test_uncertainty_reported_when_available(self):
+        p, ocv, current, voltage, _ = self._trace()
+        ekf = bms.make_soc_estimator("ekf", params=p, ocv_curve=ocv)
+        ekf.reset(0.8)
+        ekf.run(current, voltage, 1.0)
+        assert bms.soc_estimate(ekf).has_uncertainty
+        assert not bms.soc_estimate(bms.make_soc_estimator("coulomb")).has_uncertainty
+
+    def test_function_estimator_is_model_agnostic(self):
+        # Wrap an arbitrary callable (stand-in for a trained sklearn/torch/onnx
+        # model) as a first-class estimator.
+        est = bms.FunctionSocEstimator(
+            lambda v, i, dt, T, s: s - i * dt / (2.3 * 3600.0), name="byo")
+        assert isinstance(est, bms.SocEstimator)
+        out = est.run(np.full(100, 1.0), np.full(100, 3.7), 1.0, soc0=0.9)
+        assert np.all((out >= 0.0) & (out <= 1.0)) and out[-1] < 0.9
+
+    def test_unknown_estimator_raises(self):
+        with pytest.raises(KeyError):
+            bms.make_soc_estimator("does_not_exist")
+
+    def test_custom_registration_round_trips(self):
+        @bms.register_soc_estimator("const_half")
+        def _factory(**_):
+            return bms.FunctionSocEstimator(lambda v, i, dt, T, s: 0.5,
+                                            name="const_half")
+        assert "const_half" in bms.available_soc_estimators()
+        assert bms.make_soc_estimator("const_half").update(1.0, 3.7, 1.0) == 0.5

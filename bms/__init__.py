@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 from .chemistry import CellChemistry, get_chemistry_props
 from .ocv_soc import OCVSOC
@@ -78,6 +78,11 @@ from .charging import (
     ChargeMethod, ChargeProtocol, ChargeResult, ChargingModel,
     METHOD_POWER_KW, compare_methods,
 )
+from .estimation import (
+    Estimate, SocEstimator, RecursiveSocEstimator, FunctionSocEstimator,
+    soc_estimate, make_soc_estimator, available_soc_estimators,
+    register_soc_estimator,
+)
 
 __all__ = [
     "__version__",
@@ -108,4 +113,7 @@ __all__ = [
     "AgingModel", "AgingParams", "AgingState",
     "ChargeMethod", "ChargeProtocol", "ChargeResult", "ChargingModel",
     "METHOD_POWER_KW", "compare_methods",
+    "Estimate", "SocEstimator", "RecursiveSocEstimator", "FunctionSocEstimator",
+    "soc_estimate", "make_soc_estimator", "available_soc_estimators",
+    "register_soc_estimator",
 ]
