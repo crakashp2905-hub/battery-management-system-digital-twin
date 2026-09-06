@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 from .aging import AgingModel, AgingParams, AgingState
 from .balancing import (
@@ -58,6 +58,18 @@ from .data import (
     generate_load_profile,
     generate_power_profile,
     load_nasa_like_dataset,
+)
+from .datasets import (
+    DATASET_SOURCES,
+    LG_COLUMN_MAP,
+    DriveCycleData,
+    estimator_leaderboard,
+    load_capacity_fade_csv,
+    load_drivecycle_csv,
+    nasa_mat_to_capacity,
+    save_drivecycle_csv,
+    soh_curve,
+    synthetic_drivecycle,
 )
 from .diagnostics import compute_crate_map, simulate_eis
 from .dva import compute_dva, compute_ica, synthetic_discharge_for_dva
@@ -158,4 +170,7 @@ __all__ = [
     "explain_state", "explain_charge",
     "PressureModel", "MechanicalParams", "CellMechanicalState",
     "MechanicalFaultDetector", "coulombic_efficiency",
+    "DriveCycleData", "synthetic_drivecycle", "load_drivecycle_csv",
+    "save_drivecycle_csv", "estimator_leaderboard", "load_capacity_fade_csv",
+    "nasa_mat_to_capacity", "soh_curve", "DATASET_SOURCES", "LG_COLUMN_MAP",
 ]

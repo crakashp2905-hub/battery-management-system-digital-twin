@@ -1966,3 +1966,70 @@ class TestMechanics:
         names = {"gas_venting", "internal_short", "swelling", "electrolyte_leak"}
         assert names <= {m.value for m in bms.FaultMode}
         assert names <= set(bms.BMSCanBus.FAULT_CODES)
+
+
+# ----------------------------------------------------------------------
+# Real-dataset validation: loaders, fixture, and leaderboard
+# ----------------------------------------------------------------------
+class TestDatasets:
+    def test_synthetic_drivecycle_consistent(self):
+        d = bms.synthetic_drivecycle("nmc", duration_s=600, seed=3)
+        assert d.n == len(d.soc_true) == len(d.voltage_V)
+        assert np.all((d.soc_true >= 0.0) & (d.soc_true <= 1.0))
+        assert 2.5 < float(np.median(d.voltage_V)) < 4.3
+        assert d.dt == pytest.approx(1.0)
+
+    def test_csv_round_trip(self, tmp_path):
+        d = bms.synthetic_drivecycle("lfp", duration_s=300, seed=4)
+        p = tmp_path / "dc.csv"
+        bms.save_drivecycle_csv(d, p)
+        d2 = bms.load_drivecycle_csv(p, chemistry="lfp")
+        assert d2.n == d.n
+        assert np.allclose(d2.soc_true, d.soc_true)
+        assert np.allclose(d2.voltage_V, d.voltage_V)
+
+    def test_leaderboard_kf_beats_coulomb_under_bias(self):
+        d = bms.synthetic_drivecycle("nmc", duration_s=1200, seed=1, current_bias_A=0.4)
+        lb = bms.estimator_leaderboard(d)
+        assert {"rmse", "mae", "max_err", "runtime_s"} <= set(lb.columns)
+        assert list(lb["rmse"]) == sorted(lb["rmse"])            # ranked by rmse
+        assert lb.loc["ekf", "rmse"] < lb.loc["coulomb", "rmse"]  # KF beats drift
+
+    def test_coulomb_counted_when_soc_column_absent(self, tmp_path):
+        import pandas as pd
+        d = bms.synthetic_drivecycle("nmc", duration_s=200, seed=2)
+        pd.DataFrame({"time_s": d.time_s, "current_A": d.current_A,
+                      "voltage_V": d.voltage_V}).to_csv(tmp_path / "no_soc.csv", index=False)
+        d2 = bms.load_drivecycle_csv(tmp_path / "no_soc.csv", chemistry="nmc",
+                                     soc0=float(d.soc_true[0]))
+        assert d2.n == d.n and np.all((d2.soc_true >= 0.0) & (d2.soc_true <= 1.0))
+
+    def test_committed_sample_loads_and_scores(self):
+        sample = (Path(__file__).resolve().parents[1]
+                  / "data" / "samples" / "synthetic_drivecycle_nmc.csv")
+        assert sample.exists()
+        d = bms.load_drivecycle_csv(sample, chemistry="nmc")
+        lb = bms.estimator_leaderboard(d, estimators=["coulomb", "ekf"])
+        assert bool(np.isfinite(lb["rmse"]).all())
+
+    def test_capacity_fade_soh_and_rul(self, tmp_path):
+        import pandas as pd
+        cyc = np.arange(1, 201.0)
+        cap = 2.3 * (1 - 0.0004 * cyc)
+        pd.DataFrame({"cycle": cyc, "capacity_Ah": cap}).to_csv(tmp_path / "cap.csv", index=False)
+        c2, cap2 = bms.load_capacity_fade_csv(tmp_path / "cap.csv")
+        assert np.allclose(cap2, cap)
+        soh, rul = bms.soh_curve(cap2)
+        assert soh[0] == pytest.approx(1.0) and soh[-1] < 1.0
+        assert rul > 0.0 and np.isfinite(rul)
+
+    def test_nasa_mat_parser(self, tmp_path):
+        from scipy.io import savemat
+        p = tmp_path / "B0005.mat"
+        savemat(str(p), {"B0005": {"cycle": [
+            {"type": "discharge", "data": {"Capacity": 1.85}},
+            {"type": "charge", "data": {}},
+            {"type": "discharge", "data": {"Capacity": 1.74}}]}})
+        nums, caps = bms.nasa_mat_to_capacity(str(p))
+        assert nums.tolist() == [1.0, 2.0]
+        assert np.allclose(caps, [1.85, 1.74])

@@ -10,13 +10,13 @@ reproducible, fully-tested framework where every module is independently usable.
 <p>
   <img alt="version" src="https://img.shields.io/badge/version-0.10.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
-  <img alt="tests" src="https://img.shields.io/badge/tests-215%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-222%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 215/215 unit tests pass • 24 library modules • 7 chemistries • ruff-clean •
+> **Status.** ✅ 222/222 unit tests pass • 25 library modules • 7 chemistries • ruff-clean •
 > CI on Python 3.10–3.13 • Streamlit dashboard + EV range predictor + executed demo notebook.
 
 ---
@@ -97,7 +97,7 @@ Each chemistry lives in `bms/chemistry.py` (`CHEMISTRY_PROPS`); request one with
 
 ```
 battery-management-system-digital-twin/
-├── bms/                       # Library (24 modules)
+├── bms/                       # Library (25 modules)
 │   ├── chemistry.py           # 7 chemistries: OCV tables, Arrhenius, limits, defaults
 │   ├── ocv_soc.py             # OCV–SOC characteristic (PCHIP interpolant, temp coefficient)
 │   ├── ecm.py                 # 2-RC equivalent-circuit model, Arrhenius scaling, parameter ID
@@ -121,7 +121,8 @@ battery-management-system-digital-twin/
 │   ├── diagnostics.py         # EIS (Nyquist) simulation + C-rate capability map
 │   ├── range_predictor.py     # Physics-based EV range predictor (weather/traffic/road coupling)
 │   ├── interpret.py           # Plain-language explanations, feature importances, fusion
-│   └── data.py                # Load / CC-CV / power profiles, NASA-like & ageing datasets
+│   ├── data.py                # Load / CC-CV / power profiles, NASA-like & ageing datasets
+│   └── datasets.py            # Real-dataset loaders (LG / NASA) + estimator leaderboard
 ├── app/streamlit_app.py       # Live multi-tab dashboard + range predictor
 ├── notebooks/                 # Executed end-to-end demo
 ├── scripts/build_notebook.py  # Reproducible notebook generator
@@ -158,6 +159,7 @@ battery-management-system-digital-twin/
 | DVA / ICA, EIS, C-rate map | `bms/dva.py`, `bms/diagnostics.py` |
 | Physics-based EV range prediction | `bms/range_predictor.py` |
 | **Interpretability — explanations, importances, fusion** | `bms/interpret.py` |
+| **Real-dataset validation — loaders + estimator leaderboard** | `bms/datasets.py` |
 | Visualisation | `app/streamlit_app.py`, `notebooks/` |
 
 ---
@@ -291,7 +293,7 @@ Diagnostics, Fault Analysis) and **🚗 Range Predictor**.
 ## Testing
 
 ```bash
-pytest -q          # 215 tests, ~15 s
+pytest -q          # 222 tests, ~15 s
 ruff check .       # lint (library is clean)
 ```
 
@@ -305,8 +307,8 @@ range-predictor energy conservation.
 
 ## Roadmap
 
-- **Real-dataset validation + estimator leaderboard** — LG 18650 drive cycles (SoC) and NASA PCoE /
-  MIT-Stanford (SoH, fast-charge), with a loader + benchmark table.
+- **Real data** — loaders + an estimator leaderboard ship in `bms/datasets.py`; drop in the
+  LG-18650 / NASA PCoE files (see `DATASET_SOURCES`) and it runs unchanged.
 - **Online resistance SoH** — estimate R₀ growth alongside capacity.
 - **Dashboard expansion** — surface charging, aging, online SoH, SoP, and interpretability.
 - **Publish to PyPI**; add rendered API docs.

@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-09-06
+
+### Added
+- **Real-dataset validation scaffold** (`bms/datasets.py`):
+  - `DriveCycleData` + `synthetic_drivecycle()` (a physically-consistent fixture,
+    with an optional current-sensor bias); `load_drivecycle_csv()` /
+    `save_drivecycle_csv()` — real LG-18650 CSVs or the fixture, with column
+    remapping and coulomb-counted SoC when ground truth is absent.
+  - `estimator_leaderboard()` — runs every registered estimator on a trace and
+    ranks them by SoC RMSE / MAE / max-error / runtime. Under a current bias the
+    EKF/UKF beat the Coulomb counter, as expected.
+  - SoH path: `load_capacity_fade_csv()`, `nasa_mat_to_capacity()` (parses the
+    NASA PCoE `.mat`), and `soh_curve()` (SoH series + RUL extrapolation).
+  - `DATASET_SOURCES` (LG-18650 / NASA PCoE / MIT-Stanford URLs + usage) and a
+    committed synthetic sample under `data/samples/`.
+- 7 tests (now **222** total). Raw datasets are not committed — drop them in and
+  the loaders + leaderboard run unchanged.
+
 ## [0.11.0] - 2026-09-06
 
 ### Added
