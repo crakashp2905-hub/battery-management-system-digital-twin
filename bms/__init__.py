@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 
 from .aging import AgingModel, AgingParams, AgingState
 from .balancing import (
@@ -89,6 +89,13 @@ from .interpret import (
     feature_importances,
     soc_report,
 )
+from .mechanics import (
+    CellMechanicalState,
+    MechanicalFaultDetector,
+    MechanicalParams,
+    PressureModel,
+    coulombic_efficiency,
+)
 from .ocv_soc import OCVSOC
 from .pack import BatteryPack, PackConfig
 from .passport import BatteryPassport
@@ -149,4 +156,6 @@ __all__ = [
     "JointEKFSoH",
     "FEATURE_NAMES", "feature_importances", "estimator_agreement", "soc_report",
     "explain_state", "explain_charge",
+    "PressureModel", "MechanicalParams", "CellMechanicalState",
+    "MechanicalFaultDetector", "coulombic_efficiency",
 ]

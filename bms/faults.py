@@ -52,6 +52,11 @@ class FaultMode(str, Enum):
     THERMAL_RUNAWAY = "thermal_runaway"
     SENSOR_DROPOUT = "sensor_dropout"
     SENSOR_BIAS = "sensor_bias"
+    # Mechanical / gas failure modes (see bms.mechanics).
+    GAS_VENTING = "gas_venting"
+    INTERNAL_SHORT = "internal_short"
+    SWELLING = "swelling"
+    ELECTROLYTE_LEAK = "electrolyte_leak"
 
 
 @dataclass

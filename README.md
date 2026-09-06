@@ -10,13 +10,13 @@ reproducible, fully-tested framework where every module is independently usable.
 <p>
   <img alt="version" src="https://img.shields.io/badge/version-0.10.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
-  <img alt="tests" src="https://img.shields.io/badge/tests-208%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-215%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 208/208 unit tests pass • 23 library modules • 7 chemistries • ruff-clean •
+> **Status.** ✅ 215/215 unit tests pass • 24 library modules • 7 chemistries • ruff-clean •
 > CI on Python 3.10–3.13 • Streamlit dashboard + EV range predictor + executed demo notebook.
 
 ---
@@ -58,6 +58,9 @@ reproducible, fully-tested framework where every module is independently usable.
   control action.
 - **Hybrid fault detection** — deterministic rule layer (sole trip authority; overcharge,
   undervoltage, short-circuit, thermal-runaway) OR-fused with an advisory Random-Forest layer.
+- **Mechanical / gas fault detection** — internal pressure, swelling, gas venting, and
+  microfracture internal shorts; pressure/gas cross their thresholds **~17 s before** the
+  temperature-runaway rule in the reference ramp (early warning that temperature alone misses).
 - **Intelligent supervisor** — IDLE → PRECHARGE → OPERATING → BALANCING → FAULT → SHUTDOWN state
   machine with HV pre-charge contactor sequencing, predictive cooling, and current- or power-mode
   loads.
@@ -94,7 +97,7 @@ Each chemistry lives in `bms/chemistry.py` (`CHEMISTRY_PROPS`); request one with
 
 ```
 battery-management-system-digital-twin/
-├── bms/                       # Library (23 modules)
+├── bms/                       # Library (24 modules)
 │   ├── chemistry.py           # 7 chemistries: OCV tables, Arrhenius, limits, defaults
 │   ├── ocv_soc.py             # OCV–SOC characteristic (PCHIP interpolant, temp coefficient)
 │   ├── ecm.py                 # 2-RC equivalent-circuit model, Arrhenius scaling, parameter ID
@@ -105,6 +108,7 @@ battery-management-system-digital-twin/
 │   ├── soh_estimator.py       # Joint EKF: online SoC + capacity (SoH) with uncertainty
 │   ├── estimation.py          # Model-agnostic protocols + registry + BYO adapter + Estimate
 │   ├── faults.py              # Fault injection + hybrid rule/ML detector + feature buffer
+│   ├── mechanics.py           # Pressure / gas / swelling, venting, internal-short detection
 │   ├── _train_detector.py     # Synthetic labelled-data generator for the ML detector
 │   ├── fmea.py                # FMEA / RPN table + RUL estimator (capacity & resistance fade)
 │   ├── charging.py            # AC/DC, fast/slow charging physics + plating limit
@@ -143,6 +147,7 @@ battery-management-system-digital-twin/
 | **Online SoH — joint EKF (SoC + capacity)** | `bms/soh_estimator.py` |
 | **Model-agnostic estimator registry + BYO + uncertainty** | `bms/estimation.py` |
 | Fault injection + hybrid (rule + ML) detection | `bms/faults.py`, `bms/_train_detector.py` |
+| **Mechanical / gas faults — pressure, swelling, venting, internal short** | `bms/mechanics.py` |
 | FMEA with S/O/D/RPN + RUL | `bms/fmea.py` |
 | **Charging-method physics (AC/DC, fast/slow) + plating** | `bms/charging.py` |
 | **Dynamic aging — capacity fade + resistance growth** | `bms/aging.py` |
@@ -286,7 +291,7 @@ Diagnostics, Fault Analysis) and **🚗 Range Predictor**.
 ## Testing
 
 ```bash
-pytest -q          # 208 tests, ~15 s
+pytest -q          # 215 tests, ~15 s
 ruff check .       # lint (library is clean)
 ```
 

@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-09-06
+
+### Added
+- **Mechanical / gas failure modes** (`bms/mechanics.py`) — the failure class that
+  voltage/temperature-only BMS logic misses:
+  - `PressureModel` couples cell temperature/SoC to internal **pressure, gas
+    generation (Arrhenius, accelerated above an onset), swelling, H₂
+    concentration, and safety-venting** (releasing gas + an exotherm fed back to
+    the thermal model). Because gas and pressure rise before temperature, the
+    pressure rule trips **~17 s before** the temperature-runaway rule on the
+    reference heat ramp — quantified early warning.
+  - `MechanicalFaultDetector` — rule detector for `GAS_VENTING`, `INTERNAL_SHORT`
+    (microfracture, via coulombic efficiency < 1), and `SWELLING`.
+  - `coulombic_efficiency()` helper (from passport Ah totals).
+- Four new `FaultMode`s — `gas_venting`, `internal_short`, `swelling`,
+  `electrolyte_leak` — with matching CAN telemetry codes.
+- 7 tests including a **pressure-leads-temperature** lead-time test (now **215** total).
+
 ## [0.10.0] - 2026-09-06
 
 ### Added
