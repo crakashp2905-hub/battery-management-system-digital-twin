@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.6.1"
+__version__ = "0.7.0"
 
 from .chemistry import CellChemistry, get_chemistry_props
 from .ocv_soc import OCVSOC
@@ -73,6 +73,11 @@ from .range_predictor import (
     RangePrediction, ROUTE_PROFILES, VEHICLE_PRESETS,
     INDIA_CITY_ROUTES, INDIA_WEATHER,
 )
+from .aging import AgingModel, AgingParams, AgingState
+from .charging import (
+    ChargeMethod, ChargeProtocol, ChargeResult, ChargingModel,
+    METHOD_POWER_KW, compare_methods,
+)
 
 __all__ = [
     "__version__",
@@ -100,4 +105,7 @@ __all__ = [
     "RangePredictor", "VehicleParams", "RouteSegment", "WeatherConditions",
     "RangePrediction", "ROUTE_PROFILES", "VEHICLE_PRESETS",
     "INDIA_CITY_ROUTES", "INDIA_WEATHER",
+    "AgingModel", "AgingParams", "AgingState",
+    "ChargeMethod", "ChargeProtocol", "ChargeResult", "ChargingModel",
+    "METHOD_POWER_KW", "compare_methods",
 ]

@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-09-06
+
+### Added
+- **Charging-method physics** (`bms/charging.py`): `ChargingModel`,
+  `ChargeProtocol`, `ChargeMethod` (AC L1/L2, DC fast/ultra), `ChargeResult`,
+  and `compare_methods()`. Quantifies effective C-rate, wall-to-battery
+  efficiency, cell heating, charge time, and lithium-plating risk for any
+  method. Headline (60 kWh pack, 20→90%): AC and 50 kW DC age the pack
+  negligibly (~3300 charges to 80% SoH), while 250 kW ultra-rapid (~4C)
+  reaches 80% in ~190 charges — roughly **17× faster wear**, driven by lithium
+  plating and heat; cold ultra-charging is worse still.
+- **Dynamic state-of-health** (`bms/aging.py`): `AgingModel`, `AgingState`,
+  `AgingParams`. Capacity fade + resistance growth from C-rate, temperature,
+  depth-of-discharge, plating, and a √-time calendar term; `apply_to_pack()`
+  writes SoH back onto the cells (idempotent) so the twin finally **ages**, and
+  `rul_cycles()` estimates remaining useful life. Closes the "no dynamic aging"
+  gap.
+- 8 regression tests (now **187** total).
+
 ## [0.6.1] - 2026-09-06
 
 ### Fixed
