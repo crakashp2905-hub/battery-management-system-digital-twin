@@ -17,8 +17,7 @@ from __future__ import annotations
 import numpy as np
 
 from .data import generate_load_profile
-from .faults import (FaultInjector, FaultMode, FaultSpec,
-                     RollingFeatureBuffer, extract_features)
+from .faults import FaultInjector, FaultMode, FaultSpec, RollingFeatureBuffer, extract_features
 from .pack import BatteryPack, PackConfig
 from .thermal import ThermalModel, ThermalParameters
 

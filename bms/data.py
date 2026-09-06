@@ -36,7 +36,6 @@ def generate_load_profile(duration_s: float, dt: float = 1.0,
                           capacity_Ah: float = 2.3, seed: int = 0) -> np.ndarray:
     """Return a current vector (positive = discharge, A)."""
     n = int(duration_s / dt)
-    t = np.arange(n) * dt
     rng = np.random.default_rng(seed)
     I_nom = c_rate * capacity_Ah
 
@@ -121,8 +120,8 @@ def generate_cccv_profile(
     np.ndarray
         Current profile [A], shape ``(N,)``.  Convention: **negative = charge**.
     """
-    from .ocv_soc import OCVSOC
     from .chemistry import get_chemistry_props
+    from .ocv_soc import OCVSOC
 
     if v_max is None:
         v_max = get_chemistry_props(chemistry)["v_max"]
@@ -296,7 +295,6 @@ def generate_aging_profile(cycles: int = 100,
 
     rng = np.random.default_rng(seed)
     n_arr = np.arange(1, cycles + 1, dtype=float)
-    sqrtN = np.sqrt(n_arr)
 
     # Assign a temperature to each cycle (cycle through the list).
     T_per_cycle = np.array([temperatures_C[i % len(temperatures_C)]

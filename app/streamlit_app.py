@@ -37,22 +37,39 @@ from plotly.subplots import make_subplots
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from bms import (
-    BatteryPack, PackConfig,
-    ThermalModel, ThermalParameters,
-    HybridFaultDetector,
-    BMSSupervisor, SupervisorConfig,
-    FaultInjector, FaultSpec, FaultMode,
-    EKFEstimator,
-    get_chemistry_props,
-    generate_load_profile, generate_power_profile, generate_cccv_profile,
-    load_nasa_like_dataset, generate_aging_profile,
-    estimate_rul, estimate_rul_with_resistance,
-    compute_dva, compute_ica, synthetic_discharge_for_dva,
-    simulate_eis, compute_crate_map,
+    INDIA_CITY_ROUTES,
+    INDIA_WEATHER,
+    ROUTE_PROFILES,
+    VEHICLE_PRESETS,
+    BatteryPack,
+    BMSSupervisor,
     ECMParameters,
-    RangePredictor, VehicleParams, WeatherConditions, RouteSegment,
-    ROUTE_PROFILES, VEHICLE_PRESETS, INDIA_CITY_ROUTES, INDIA_WEATHER,
-    RangePrediction,
+    EKFEstimator,
+    FaultInjector,
+    FaultMode,
+    FaultSpec,
+    HybridFaultDetector,
+    PackConfig,
+    RangePredictor,
+    RouteSegment,
+    SupervisorConfig,
+    ThermalModel,
+    ThermalParameters,
+    VehicleParams,
+    WeatherConditions,
+    compute_crate_map,
+    compute_dva,
+    compute_ica,
+    estimate_rul,
+    estimate_rul_with_resistance,
+    generate_aging_profile,
+    generate_cccv_profile,
+    generate_load_profile,
+    generate_power_profile,
+    get_chemistry_props,
+    load_nasa_like_dataset,
+    simulate_eis,
+    synthetic_discharge_for_dva,
 )
 from bms._train_detector import generate_fault_training_data
 
@@ -1232,15 +1249,15 @@ def render_range_predictor():
                 _rq_opts = ["excellent", "good", "average", "poor"]
                 for i in range(5):
                     with st.expander(f"Segment {i+1}", expanded=(i == 0)):
-                        seg_d = st.number_input(f"Distance [km]", 0.0, 200.0, 5.0,
+                        seg_d = st.number_input("Distance [km]", 0.0, 200.0, 5.0,
                                                  key=f"rp_d{i}")
-                        seg_v = st.number_input(f"Avg speed [km/h]", 5.0, 120.0, 30.0,
+                        seg_v = st.number_input("Avg speed [km/h]", 5.0, 120.0, 30.0,
                                                  key=f"rp_v{i}")
-                        seg_g = st.number_input(f"Grade [%]", -15.0, 15.0, 0.0,
+                        seg_g = st.number_input("Grade [%]", -15.0, 15.0, 0.0,
                                                  key=f"rp_g{i}")
-                        seg_t = st.slider(f"Traffic factor", 0.0, 1.0, 0.60,
+                        seg_t = st.slider("Traffic factor", 0.0, 1.0, 0.60,
                                            key=f"rp_t{i}")
-                        seg_rq = st.selectbox(f"Road quality", _rq_opts, index=2,
+                        seg_rq = st.selectbox("Road quality", _rq_opts, index=2,
                                                key=f"rp_rq{i}")
                         if seg_d > 0:
                             custom_segs.append(RouteSegment(
@@ -1259,13 +1276,13 @@ def render_range_predictor():
                 custom_segs = []
                 for i in range(5):
                     with st.expander(f"Segment {i+1}", expanded=(i == 0)):
-                        seg_d = st.number_input(f"Distance [km]", 0.0, 500.0, 10.0,
+                        seg_d = st.number_input("Distance [km]", 0.0, 500.0, 10.0,
                                                  key=f"rp_d{i}")
-                        seg_v = st.number_input(f"Avg speed [km/h]", 5.0, 200.0, 60.0,
+                        seg_v = st.number_input("Avg speed [km/h]", 5.0, 200.0, 60.0,
                                                  key=f"rp_v{i}")
-                        seg_g = st.number_input(f"Grade [%]", -15.0, 15.0, 0.0,
+                        seg_g = st.number_input("Grade [%]", -15.0, 15.0, 0.0,
                                                  key=f"rp_g{i}")
-                        seg_t = st.slider(f"Traffic factor", 0.0, 1.0, 1.0,
+                        seg_t = st.slider("Traffic factor", 0.0, 1.0, 1.0,
                                            key=f"rp_t{i}")
                         if seg_d > 0:
                             custom_segs.append(RouteSegment(seg_d, seg_v, seg_g,

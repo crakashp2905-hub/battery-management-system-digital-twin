@@ -30,7 +30,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-
 # ----------------------------------------------------------------------
 # FMEA — default table for a Li-ion BMS
 # ----------------------------------------------------------------------

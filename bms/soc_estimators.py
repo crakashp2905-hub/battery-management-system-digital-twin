@@ -22,7 +22,7 @@ from typing import Sequence
 
 import numpy as np
 import pandas as pd
-from filterpy.kalman import UnscentedKalmanFilter, MerweScaledSigmaPoints
+from filterpy.kalman import MerweScaledSigmaPoints, UnscentedKalmanFilter
 
 from .ecm import ECMParameters
 from .ocv_soc import OCVSOC

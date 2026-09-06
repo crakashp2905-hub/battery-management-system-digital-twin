@@ -45,10 +45,8 @@ from enum import Enum
 
 import numpy as np
 
-from .balancing import (Balancer, InductorBalancer, PassiveBalancer,
-                        SwitchedCapacitorBalancer)
-from .faults import (FaultInjector, FaultMode, HybridFaultDetector,
-                     extract_features)
+from .balancing import Balancer, InductorBalancer, PassiveBalancer, SwitchedCapacitorBalancer
+from .faults import FaultInjector, FaultMode, HybridFaultDetector, extract_features
 from .pack import BatteryPack
 from .passport import BatteryPassport
 from .thermal import PredictiveCoolingController, ThermalModel
