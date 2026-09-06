@@ -19,6 +19,9 @@ adheres to [Semantic Versioning](https://semver.org/).
     identical behaviour).
 - `plating_c_limit()` promoted to a reusable module function shared by the
   charging model and the supervisor.
+- **Dashboard:** new 🔋 *Charging & Aging* tab — an AC/DC & fast/slow comparison
+  table, charge-time / efficiency / peak-temperature bars, a projected-SoH-over-
+  cycles chart, and a plain-language `explain_charge` summary per method.
 - 5 tests (now **208** total).
 
 ## [0.9.0] - 2026-09-06

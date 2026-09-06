@@ -43,6 +43,9 @@ from bms import (
     VEHICLE_PRESETS,
     BatteryPack,
     BMSSupervisor,
+    ChargeMethod,
+    ChargeProtocol,
+    ChargingModel,
     ECMParameters,
     EKFEstimator,
     FaultInjector,
@@ -57,11 +60,13 @@ from bms import (
     ThermalParameters,
     VehicleParams,
     WeatherConditions,
+    compare_methods,
     compute_crate_map,
     compute_dva,
     compute_ica,
     estimate_rul,
     estimate_rul_with_resistance,
+    explain_charge,
     generate_aging_profile,
     generate_cccv_profile,
     generate_load_profile,
@@ -1688,8 +1693,65 @@ if run_clicked:
     st.session_state["bms_ekf"] = show_ekf
     st.session_state["bms_aging"] = aging_cycles
 
+# ── Charging & Aging tab ─────────────────────────────────────────────────────
+def render_charging_aging():
+    st.subheader("🔋 Charging method → battery health")
+    st.caption("How AC vs DC and fast vs slow charging trade off efficiency, heat, "
+               "lithium-plating risk, and capacity fade — with a SoH-over-life projection.")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        pack_kwh = st.number_input("Pack energy (kWh)", 5.0, 150.0, 60.0, 5.0, key="ca_kwh")
+        chem = st.selectbox("Chemistry", ["nmc", "lfp", "lmfp", "nca", "lmo", "lto", "ssb"],
+                            key="ca_chem")
+    with c2:
+        ambient = st.slider("Ambient temp (°C)", -20, 45, 25, key="ca_amb")
+        soc0 = st.slider("Start SoC", 0.0, 0.5, 0.2, 0.05, key="ca_s0")
+    with c3:
+        soc1 = st.slider("End SoC", 0.6, 1.0, 0.9, 0.05, key="ca_s1")
+        n_cyc = st.slider("Project over N charges", 100, 3000, 800, 100, key="ca_n")
+
+    props = get_chemistry_props(chem)
+    q = float(props["default_capacity_Ah"])
+    v = float(props["nominal_voltage_V"])
+    r0 = float(props["default_ecm"]["R0"])
+    df = compare_methods(pack_energy_kWh=pack_kwh, q_nom_Ah=q, r0_ohm=r0, v_nom=v,
+                         ambient_C=float(ambient), soc_start=soc0, soc_end=soc1)
+    st.dataframe(df, use_container_width=True)
+
+    methods = list(df.index)
+    palette = ["#6366F1", "#06B6D4", "#F59E0B", "#F43F5E", "#10B981", "#8B5CF6", "#EC4899"]
+    bar = make_subplots(rows=1, cols=3, subplot_titles=(
+        "Charge time (min)", "Efficiency (%)", "Peak cell temp (°C)"))
+    bar.add_bar(x=methods, y=df["charge_time_min"], marker_color="#6366F1", row=1, col=1)
+    bar.add_bar(x=methods, y=df["efficiency_%"], marker_color="#06B6D4", row=1, col=2)
+    bar.add_bar(x=methods, y=df["peak_temp_C"], marker_color="#F43F5E", row=1, col=3)
+    bar.update_layout(height=300, showlegend=False, margin=dict(t=44, b=8, l=8, r=8))
+    st.plotly_chart(bar, use_container_width=True)
+
+    soh_fig = go.Figure()
+    xs = np.arange(0, int(n_cyc) + 1)
+    for i, m in enumerate(methods):
+        fade = float(df.loc[m, "fade_%/session"]) / 100.0
+        soh_fig.add_trace(go.Scatter(x=xs, y=100.0 * (1.0 - fade) ** xs, mode="lines",
+                                     name=m, line=dict(color=palette[i % len(palette)])))
+    soh_fig.add_hline(y=80, line_dash="dash", line_color="gray", annotation_text="80% EoL")
+    soh_fig.update_layout(title="Projected SoH over charge cycles", height=360,
+                          xaxis_title="charge cycles", yaxis_title="SoH (%)",
+                          yaxis_range=[70, 100], margin=dict(t=44, b=8))
+    st.plotly_chart(soh_fig, use_container_width=True)
+
+    sel = st.selectbox("Explain a charging method", methods, key="ca_sel")
+    by_value = {mth.value: mth for mth in ChargeMethod}
+    proto = ChargeProtocol(by_value[sel], ambient_C=float(ambient),
+                           soc_start=soc0, soc_end=soc1)
+    res = ChargingModel().simulate(proto, pack_energy_kWh=pack_kwh, q_nom_Ah=q,
+                                   r0_ohm=r0, v_nom=v)
+    st.info(explain_charge(res))
+
+
 # ── Top-level tab bar ────────────────────────────────────────────────────────
-_sim_tab, _rp_tab = st.tabs(["🔬 Simulation", "🚗 Range Predictor"])
+_sim_tab, _rp_tab, _charge_tab = st.tabs(
+    ["🔬 Simulation", "🚗 Range Predictor", "🔋 Charging & Aging"])
 
 with _sim_tab:
     if "bms_res" in st.session_state:
@@ -1750,3 +1812,6 @@ with _sim_tab:
 
 with _rp_tab:
     render_range_predictor()
+
+with _charge_tab:
+    render_charging_aging()
