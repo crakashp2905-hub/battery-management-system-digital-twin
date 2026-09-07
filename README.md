@@ -8,16 +8,16 @@ diagnostics, an EV range predictor, and a plain-language interpretability layer 
 reproducible, fully-tested framework where every module is independently usable.
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.14.1-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-0.15.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
   <img alt="coverage" src="https://img.shields.io/badge/coverage-90%25-brightgreen">
-  <img alt="tests" src="https://img.shields.io/badge/tests-244%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-248%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 244/244 unit tests pass • 26 library modules • 7 chemistries • ruff-clean •
+> **Status.** ✅ 248/248 unit tests pass • 27 library modules • 7 chemistries • ruff-clean •
 > CI on Python 3.10–3.13 • Streamlit dashboard + EV range predictor + executed demo notebook.
 
 ---
@@ -80,8 +80,11 @@ reproducible, fully-tested framework where every module is independently usable.
   and telemetry is **redacted** before any hosted LLM sees it.
 - **Diagnostics + EV range** — DVA/ICA fingerprints, simulated EIS (Nyquist), C-rate map, and a
   first-principles range predictor with weather/traffic/road coupling (India presets included).
-- **Reproducible & tested** — every randomness source is seeded; 244 unit tests; pip-installable
-  with GitHub Actions CI.
+- **Data-calibrated** — fit ECM parameters from HPPC/pulse or drive data (`fit_from_pulse`),
+  learn per-cell parameter distributions instead of fixed scatter (`fit_cell_distribution`), and
+  report accuracy bucketed by C-rate/temperature — kept separate for **synthetic vs real** data.
+- **Reproducible & tested** — every randomness source is seeded; 248 unit tests; pip-installable
+  with GitHub Actions CI (ruff-blocking + 90% coverage gate).
 
 ---
 
@@ -107,7 +110,7 @@ Each chemistry lives in `bms/chemistry.py` (`CHEMISTRY_PROPS`); request one with
 
 ```
 battery-management-system-digital-twin/
-├── bms/                       # Library (26 modules)
+├── bms/                       # Library (27 modules)
 │   ├── chemistry.py           # 7 chemistries: OCV tables, Arrhenius, limits, defaults
 │   ├── ocv_soc.py             # OCV–SOC characteristic (PCHIP interpolant, temp coefficient)
 │   ├── ecm.py                 # 2-RC equivalent-circuit model, Arrhenius scaling, parameter ID
@@ -133,11 +136,12 @@ battery-management-system-digital-twin/
 │   ├── interpret.py           # Plain-language explanations, feature importances, fusion
 │   ├── agent.py               # Optional LLM diagnostic agent (LangGraph / LangChain / Langfuse)
 │   ├── data.py                # Load / CC-CV / power profiles, NASA-like & ageing datasets
-│   └── datasets.py            # Real-dataset loaders (LG / NASA) + estimator leaderboard
+│   ├── datasets.py            # Real-dataset loaders (LG / NASA) + estimator leaderboard
+│   └── calibration.py         # ECM parameter-ID from data, learned scatter, validation reports
 ├── app/streamlit_app.py       # Live multi-tab dashboard + range predictor
 ├── notebooks/                 # Executed end-to-end demo
 ├── scripts/build_notebook.py  # Reproducible notebook generator
-├── tests/test_bms.py          # 244 unit tests
+├── tests/test_bms.py          # 248 unit tests
 ├── figures/                   # 12 PNGs produced by the notebook
 ├── docs/architecture.md       # Layered-design notes & invariants
 ├── pyproject.toml • CHANGELOG.md • CONTRIBUTING.md • requirements.txt • LICENSE (MIT)
@@ -173,6 +177,7 @@ battery-management-system-digital-twin/
 | **Framework adapters (sklearn / ONNX / BYO)** | `bms/estimation.py` |
 | **Optional LLM diagnostic agent (LangChain / LangGraph / Langfuse)** | `bms/agent.py` |
 | **Real-dataset validation — loaders + estimator leaderboard** | `bms/datasets.py` |
+| **Calibration — ECM parameter-ID, learned scatter, validation reports** | `bms/calibration.py` |
 | Visualisation | `app/streamlit_app.py`, `notebooks/` |
 
 ---
@@ -308,7 +313,7 @@ Diagnostics, Fault Analysis) and **🚗 Range Predictor**.
 ## Testing
 
 ```bash
-pytest -q                                  # 244 tests, ~30 s
+pytest -q                                  # 248 tests, ~30 s
 pytest --cov=bms --cov-fail-under=85       # coverage gate (CI enforces ≥ 85%; currently 90%)
 ruff check .                               # lint — blocking in CI
 ```

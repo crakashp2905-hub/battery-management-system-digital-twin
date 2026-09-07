@@ -74,6 +74,7 @@ class DriveCycleData:
     capacity_Ah: float
     chemistry: str = "nmc"
     name: str = ""
+    source: str = "synthetic"     # "synthetic" | "real" — keep results separate
 
     @property
     def dt(self) -> float:
@@ -169,7 +170,7 @@ def load_drivecycle_csv(path, chemistry: str = "nmc", capacity_Ah: float | None 
 
     return DriveCycleData(time_s=time_s, current_A=current, voltage_V=voltage,
                           temperature_C=temp, soc_true=soc, capacity_Ah=cap,
-                          chemistry=chemistry, name=name or str(path))
+                          chemistry=chemistry, name=name or str(path), source="real")
 
 
 # ======================================================================

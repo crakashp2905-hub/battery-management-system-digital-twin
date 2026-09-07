@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.14.1"
+__version__ = "0.15.0"
 
 from .agent import (
     ActionGate,
@@ -48,6 +48,12 @@ from .balancing import (
     PassiveBalancer,
     SwitchedCapacitorBalancer,
     compare_balancers,
+)
+from .calibration import (
+    PulseFitResult,
+    fit_cell_distribution,
+    fit_from_pulse,
+    validation_report,
 )
 from .can import BMSCanBus, CANFrame
 from .charging import (
@@ -195,4 +201,5 @@ __all__ = [
     "DriveCycleData", "synthetic_drivecycle", "load_drivecycle_csv",
     "save_drivecycle_csv", "estimator_leaderboard", "load_capacity_fade_csv",
     "nasa_mat_to_capacity", "soh_curve", "DATASET_SOURCES", "LG_COLUMN_MAP",
+    "PulseFitResult", "fit_from_pulse", "fit_cell_distribution", "validation_report",
 ]
