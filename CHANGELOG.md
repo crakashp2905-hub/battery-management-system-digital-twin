@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.14.1] - 2026-09-07
+
+### Added
+- **`OllamaLLM`** — a local, on-device Ollama model as an `llm` callable (`str→str`),
+  dependency-free (urllib). Fits the privacy/redaction posture — no telemetry leaves
+  the machine — and works with `DiagnosticAgent(llm=…)`, `explain_state(…, llm=…)`,
+  and the LangGraph agent (LangChain's `ChatOllama` works through the same hook).
+  Because agent actions are deterministic, even a small local model is safe: it only
+  phrases the report.
+- 2 tests (now **244**).
+
 ## [0.14.0] - 2026-09-06
 
 ### Added

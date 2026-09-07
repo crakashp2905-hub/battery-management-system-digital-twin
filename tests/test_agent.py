@@ -182,3 +182,31 @@ class TestAgentSafety:
             if sc["severity"] in ("warning", "critical"):
                 assert rep.proposed_actions                          # non-nominal → an action
 
+
+# ----------------------------------------------------------------------
+# Ollama (local, on-device) LLM adapter
+# ----------------------------------------------------------------------
+class TestOllamaAdapter:
+    def test_ollama_llm_payload_and_return(self):
+        seen = {}
+
+        def transport(payload):
+            seen.update(payload)
+            return "on-device: reduce current"
+
+        llm = bms.OllamaLLM("qwen2.5:3b", _transport=transport)
+        assert llm("hello there") == "on-device: reduce current"
+        assert seen["model"] == "qwen2.5:3b"
+        assert seen["prompt"] == "hello there"
+        assert seen["stream"] is False
+
+    def test_ollama_drives_agent_and_narration(self):
+        llm = bms.OllamaLLM(_transport=lambda p: "LOCAL: open the contactor")
+        rf = {"state": "fault", "fault_label": "thermal_runaway", "fault_source": "rule",
+              "T_cells": np.full(4, 75.0), "v_pack": 15.0, "power_W": 0.0, "soc": np.full(4, 0.5)}
+        rep = bms.DiagnosticAgent(llm=llm).diagnose(rf)
+        assert rep.recommendation == "LOCAL: open the contactor"
+        # actions stay deterministic — the local model only phrases the report
+        assert any(a.kind == "open_contactor" for a in rep.proposed_actions)
+        assert bms.explain_state(rf, llm=llm) == "LOCAL: open the contactor"
+

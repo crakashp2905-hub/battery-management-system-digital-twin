@@ -27,6 +27,52 @@ import numpy as np
 _SEVERITY_ORDER = {"ok": 0, "info": 1, "warning": 2, "critical": 3}
 
 
+# ----------------------------------------------------------------------
+# LLM provider adapters (all satisfy the `llm=` str -> str contract)
+# ----------------------------------------------------------------------
+class OllamaLLM:
+    """A local `Ollama <https://ollama.com>`_ model as an ``llm`` callable.
+
+    Runs **fully on-device**, so no telemetry leaves the machine — a natural fit
+    for the redaction / data-governance posture (and free / offline).  Requires a
+    running Ollama server; no Python dependency (uses ``urllib``).  Because the
+    agent's *actions* are deterministic, even a small local model is safe here —
+    it only phrases the report.
+
+    Examples
+    --------
+    ::
+
+        agent = bms.DiagnosticAgent(llm=bms.OllamaLLM("llama3.2"))
+        text  = bms.explain_state(result, llm=bms.OllamaLLM("qwen2.5:3b"))
+
+    LangChain's ``ChatOllama`` also works through the same hook:
+    ``llm=lambda p: ChatOllama(model="llama3.2").invoke(p).content``.
+    """
+
+    def __init__(self, model: str = "llama3.2", host: str = "http://localhost:11434",
+                 timeout: float = 60.0, options: dict | None = None, _transport=None):
+        self.model = model
+        self.host = host.rstrip("/")
+        self.timeout = float(timeout)
+        self.options = options or {}
+        self._transport = _transport      # injectable for tests; None → real HTTP
+
+    def __call__(self, prompt: str) -> str:
+        payload = {"model": self.model, "prompt": prompt, "stream": False,
+                   "options": self.options}
+        if self._transport is not None:
+            return str(self._transport(payload))
+        import json  # pragma: no cover
+        import urllib.request  # pragma: no cover
+        req = urllib.request.Request(                      # pragma: no cover
+            f"{self.host}/api/generate",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # pragma: no cover
+            return str(json.loads(resp.read()).get("response", "")).strip()
+
+
 @dataclass
 class Tool:
     """A named callable the agent (or an LLM) can invoke."""

@@ -24,13 +24,14 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.14.0"
+__version__ = "0.14.1"
 
 from .agent import (
     ActionGate,
     DiagnosisReport,
     DiagnosticAgent,
     Finding,
+    OllamaLLM,
     ProposedAction,
     Tool,
     build_langgraph_agent,
@@ -184,7 +185,7 @@ __all__ = [
     "register_soc_estimator",
     "SklearnSocEstimator", "OnnxSocEstimator", "model_from_file",
     "Tool", "Finding", "DiagnosisReport", "DiagnosticAgent", "ProposedAction",
-    "ActionGate", "redact_telemetry", "evaluation_scenarios",
+    "ActionGate", "redact_telemetry", "evaluation_scenarios", "OllamaLLM",
     "twin_tools", "to_langchain_tools", "build_langgraph_agent", "traced",
     "JointEKFSoH",
     "FEATURE_NAMES", "feature_importances", "estimator_agreement", "soc_report",
