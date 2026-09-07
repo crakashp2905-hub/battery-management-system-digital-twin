@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.15.0] - 2026-09-07
+
+### Added
+- **Real-data calibration** (`bms/calibration.py`) — the bridge from a research
+  simulator to a data-calibrated twin:
+  - `fit_from_pulse()` — identify ECM parameters (R0/R1/C1/R2/C2) from an HPPC /
+    pulse or drive trace (recovers R0 to ~0.2 mΩ on a noisy synthetic pulse).
+  - `fit_cell_distribution()` — learn per-parameter mean/std across cells and a
+    data-driven `PackConfig` scatter, replacing fixed manufacturing scatter.
+  - `validation_report()` — SoC-error metrics bucketed by C-rate or temperature,
+    tagged with chemistry and **source (synthetic vs real)**.
+- `DriveCycleData.source` (`"synthetic"` | `"real"`; CSV loaders set `"real"`) so
+  real-data accuracy is never conflated with synthetic.
+- 4 tests (now **248**).
+
 ## [0.14.1] - 2026-09-07
 
 ### Added
