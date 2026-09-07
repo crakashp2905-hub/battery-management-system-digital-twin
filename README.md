@@ -8,16 +8,16 @@ diagnostics, an EV range predictor, and a plain-language interpretability layer 
 reproducible, fully-tested framework where every module is independently usable.
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.14.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-0.14.1-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
   <img alt="coverage" src="https://img.shields.io/badge/coverage-90%25-brightgreen">
-  <img alt="tests" src="https://img.shields.io/badge/tests-242%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-244%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 242/242 unit tests pass • 26 library modules • 7 chemistries • ruff-clean •
+> **Status.** ✅ 244/244 unit tests pass • 26 library modules • 7 chemistries • ruff-clean •
 > CI on Python 3.10–3.13 • Streamlit dashboard + EV range predictor + executed demo notebook.
 
 ---
@@ -74,12 +74,13 @@ reproducible, fully-tested framework where every module is independently usable.
 - **Optional LLM diagnostic agent** — a *deterministic* diagnostic engine (fault / thermal / gas /
   SoH → severity + recommended action) with optional LLM phrasing; **read-only tools** and lazy
   LangChain / LangGraph / Langfuse integration behind the `[agent]` extra. Provider-agnostic
-  (`llm=` any `str→str`), Claude by default. **Safety-first:** structured actions are
+  (`llm=` any `str→str`), Claude by default — or a local **Ollama** model (`OllamaLLM`) for
+  on-device / offline / no-telemetry-egress. **Safety-first:** structured actions are
   derived deterministically (prompt-injection-immune), gated **deny-by-default** (`ActionGate`),
   and telemetry is **redacted** before any hosted LLM sees it.
 - **Diagnostics + EV range** — DVA/ICA fingerprints, simulated EIS (Nyquist), C-rate map, and a
   first-principles range predictor with weather/traffic/road coupling (India presets included).
-- **Reproducible & tested** — every randomness source is seeded; 242 unit tests; pip-installable
+- **Reproducible & tested** — every randomness source is seeded; 244 unit tests; pip-installable
   with GitHub Actions CI.
 
 ---
@@ -136,7 +137,7 @@ battery-management-system-digital-twin/
 ├── app/streamlit_app.py       # Live multi-tab dashboard + range predictor
 ├── notebooks/                 # Executed end-to-end demo
 ├── scripts/build_notebook.py  # Reproducible notebook generator
-├── tests/test_bms.py          # 242 unit tests
+├── tests/test_bms.py          # 244 unit tests
 ├── figures/                   # 12 PNGs produced by the notebook
 ├── docs/architecture.md       # Layered-design notes & invariants
 ├── pyproject.toml • CHANGELOG.md • CONTRIBUTING.md • requirements.txt • LICENSE (MIT)
@@ -307,7 +308,7 @@ Diagnostics, Fault Analysis) and **🚗 Range Predictor**.
 ## Testing
 
 ```bash
-pytest -q                                  # 242 tests, ~30 s
+pytest -q                                  # 244 tests, ~30 s
 pytest --cov=bms --cov-fail-under=85       # coverage gate (CI enforces ≥ 85%; currently 90%)
 ruff check .                               # lint — blocking in CI
 ```
