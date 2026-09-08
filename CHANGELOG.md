@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.17.0] - 2026-09-09
+
+### Added
+- **Online joint SoC + SoH estimation in the supervisor.** With
+  `SupervisorConfig.estimate_online=True`, `BMSSupervisor.step()` runs one
+  `JointEKFSoH` each step and returns `soc_estimated`, `soc_sigma`,
+  `soh_estimated`, `soh_sigma`, and `capacity_est_Ah` — **SoC and SoH from a
+  single online filter**. When `online_feeds_soh` (default) and `soh_aware` are
+  set, that SoH also drives the control-layer derating (one source of truth).
+  Off by default → existing behaviour unchanged (fields are `nan`).
+- **Estimator benchmark** (`scripts/benchmark_estimators.py`) — head-to-head SoC
+  RMSE across all 7 chemistries × 3 conditions (nominal / current-sensor bias /
+  voltage noise) via the built-in `estimator_leaderboard`, with a winner matrix.
+- **`docs/estimation.md`** — documents exactly which model produces each quantity
+  (SoC / SoH / SoE / health / RUL / thermal-runaway) and the benchmark results
+  with an honest interpretation (e.g. EKF beats Coulomb ~6× under a biased
+  current sensor on sloped-OCV chemistries; flat-OCV chemistries blunt all
+  voltage-feedback filters).
+
+### Changed
+- **Dashboard now uses the online joint-EKF as the default estimator.** The SoC
+  overlay (Live Signals) and a new live **Online SoH** panel (SoH & Aging tab)
+  both come from that one filter, each with its ±1σ band.
+
+### Fixed
+- Dashboard crashed on every simulation run under NumPy < 2.0 (`np.trapezoid`
+  was added in 2.0). Now uses the same `np.trapz` fallback shim as `bms/pack.py`.
+
+- 3 tests (now **268**).
+
 ## [0.16.0] - 2026-09-08
 
 ### Added

@@ -232,6 +232,12 @@ class SupervisorConfig:
     soh_derate_floor: float = 0.70       # SoH at/below which current hits the floor
     soh_min_current_factor: float = 0.5  # current fraction at/below the floor
     plating_aware_charge: bool = True    # cap charge C-rate to the plating limit
+    # Online estimation: run a joint SoC+SoH EKF each step so both come from one
+    # recursive filter.  Off by default (existing behaviour); the dashboard turns
+    # it on.  When ``online_feeds_soh`` and ``soh_aware`` are both set, the
+    # filter's SoH drives the control derating automatically.
+    estimate_online: bool = False
+    online_feeds_soh: bool = True
 
 
 @dataclass
@@ -274,6 +280,15 @@ class BMSSupervisor:
             resistance_ohm=self.config.precharge_resistance_ohm,
             capacitance_F=self.config.precharge_capacitance_F,
         )
+        # Online joint SoC+SoH filter (one recursive estimator for both).
+        self._online = None
+        if self.config.estimate_online:
+            from .soh_estimator import JointEKFSoH
+            self._online = JointEKFSoH(
+                params=self.pack.groups[0].cells[0].params,
+                ocv_curve=self.pack.ocv_curve,
+                q_nominal_Ah=float(self.pack.capacities_Ah[0]))
+            self._online.reset(float(self.pack.soc[0]))
 
         # Battery Passport — initialised from chemistry props
         from .chemistry import get_chemistry_props
@@ -377,6 +392,9 @@ class BMSSupervisor:
             ``balancing_currents``, ``imbalance``, ``cmd_current``,
             ``derated``, ``power_W``, ``peak_power_W``, ``soe_Wh``,
             ``contactor_state``, ``precharge_elapsed_s``, ``soh_capacity``.
+            When ``config.estimate_online`` is set, also ``soc_estimated``,
+            ``soc_sigma``, ``soh_estimated``, ``soh_sigma``, ``capacity_est_Ah``
+            (all ``nan`` otherwise) — SoC and SoH from one joint-EKF.
         """
         # ---- 0. Power → current conversion ---------------------------
         if requested_power_W is not None:
@@ -515,6 +533,23 @@ class BMSSupervisor:
         self.passport.update(cmd_current, v_pack, dt, soc_mean=soc_mean)
         soe_Wh = self.pack.state_of_energy_Wh()
 
+        # ---- 6. Online joint SoC+SoH estimation ----------------------
+        # One recursive filter yields both the SoC estimate (with 1-σ) and the
+        # capacity-based SoH.  Fed the applied series current and the group-0
+        # terminal voltage, exactly what a real BMS measures.
+        soc_est = soc_sigma = soh_est = soh_sigma = cap_est = float("nan")
+        if self._online is not None:
+            self._online.update(cmd_current, float(pack_step["v_cells"][0]), dt,
+                                temperature_C=float(self.thermal.T[0]))
+            soc_est = self._online.soc
+            soc_sigma = self._online.soc_uncertainty_1sigma
+            soh_est = self._online.soh
+            soh_sigma = self._online.soh_uncertainty_1sigma
+            cap_est = self._online.capacity_Ah
+            # Let the same filter drive SoH-aware control (one source of truth).
+            if self.config.online_feeds_soh:
+                self.set_soh(soh_est)
+
         return {
             "state": self.state.value,
             "fault_label": fault_label,
@@ -535,6 +570,11 @@ class BMSSupervisor:
             "contactor_state": self.contactor.state.value,
             "precharge_elapsed_s": self.contactor.elapsed_s,
             "soh_capacity": self._soh_capacity,
+            "soc_estimated": soc_est,
+            "soc_sigma": soc_sigma,
+            "soh_estimated": soh_est,
+            "soh_sigma": soh_sigma,
+            "capacity_est_Ah": cap_est,
         }
 
     # ------------------------------------------------------------------

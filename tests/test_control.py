@@ -215,3 +215,36 @@ class TestSoHAwareControl:
         assert sup.soh_capacity == 1.0
         assert sup.step(1.0, 1.0)["soh_capacity"] == 1.0
 
+
+class TestOnlineEstimation:
+    def _sup(self, **cfg_kw):
+        cfg = bms.SupervisorConfig(**cfg_kw)
+        return bms.BMSSupervisor(
+            bms.BatteryPack(bms.PackConfig(n_cells=4, seed=3)),
+            bms.ThermalModel(n_cells=4), bms.HybridFaultDetector(), config=cfg)
+
+    def test_off_by_default_returns_nan(self):
+        out = self._sup().step(1.0, 1.0)
+        for key in ("soc_estimated", "soh_estimated", "soc_sigma",
+                    "soh_sigma", "capacity_est_Ah"):
+            assert key in out
+            assert np.isnan(out[key])          # no filter running
+
+    def test_online_joint_ekf_tracks_soc_and_soh(self):
+        sup = self._sup(estimate_online=True)
+        out = None
+        for k in range(300):
+            out = sup.step(2.0, 1.0, k=k)       # steady discharge
+        soc_true = float(np.mean(out["soc"]))
+        assert abs(out["soc_estimated"] - soc_true) < 0.03   # SoC tracks truth
+        assert out["soc_sigma"] > 0.0                         # reports uncertainty
+        assert 0.8 <= out["soh_estimated"] <= 1.05            # SoH near BoL
+        assert out["capacity_est_Ah"] > 0.0
+
+    def test_one_filter_drives_soh_aware_control(self):
+        # SoC and SoH come from the *same* online filter, and that SoH is what
+        # feeds the control layer (config.online_feeds_soh, on by default).
+        sup = self._sup(estimate_online=True, soh_aware=True)
+        out = sup.step(1.0, 1.0)
+        assert out["soh_capacity"] == pytest.approx(out["soh_estimated"])
+

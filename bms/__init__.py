@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.16.0"
+__version__ = "0.17.0"
 
 from .agent import (
     ActionGate,

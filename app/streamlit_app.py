@@ -48,7 +48,6 @@ from bms import (
     ChargeProtocol,
     ChargingModel,
     ECMParameters,
-    EKFEstimator,
     FaultInjector,
     FaultMode,
     FaultSpec,
@@ -78,6 +77,10 @@ from bms import (
     synthetic_discharge_for_dva,
 )
 from bms._train_detector import generate_fault_training_data
+
+# ``np.trapezoid`` was added in NumPy 2.0; fall back to ``np.trapz`` on the
+# older NumPy in the support range (``numpy>=1.24``).
+_trapz = getattr(np, "trapezoid", getattr(np, "trapz"))
 
 # ── Design tokens ────────────────────────────────────────────────────────────
 _P = {          # indigo / amber / emerald / rose / violet / pink / cyan
@@ -160,7 +163,8 @@ def build_supervisor(n_cells: int, n_parallel: int, seed: int,
     thermal = ThermalModel(n_cells=n_cells, params=ThermalParameters())
     detector = trained_detector(chemistry)
     return BMSSupervisor(pack, thermal, detector,
-                         config=SupervisorConfig(T_setpoint_C=35.0),
+                         config=SupervisorConfig(T_setpoint_C=35.0,
+                                                 estimate_online=True),
                          injector=injector)
 
 
@@ -444,7 +448,9 @@ with st.sidebar:
     fault_severity = st.slider("Severity", 0.1, 2.0, 1.0, step=0.1)
 
     st.header("Options")
-    show_ekf = st.checkbox("Overlay EKF SOC estimate ± 1σ", value=True)
+    show_ekf = st.checkbox("Overlay joint-EKF SoC estimate ± 1σ", value=True,
+                           help="Online joint SoC+SoH EKF — the same filter also "
+                                "produces the live SoH shown on the SoH & Aging tab.")
     aging_cycles = st.slider("Aging cycles (SoH tab)", 20, 200, 80, step=10)
 
     run_clicked = st.button("▶ Run simulation", type="primary",
@@ -560,13 +566,8 @@ def run_sim(n_cells: int, n_parallel: int, chemistry: str, seed: int,
 
     n = len(i_load) if i_load is not None else len(p_load)
 
-    # EKF
-    ekf = None
-    if show_ekf:
-        first_cell_params = sup.pack.groups[0].cells[0].params
-        ekf = EKFEstimator(params=first_cell_params, ocv_curve=sup.pack.ocv_curve)
-        ekf.reset(soc0=sup.pack.soc[0])
-
+    # Online SoC + SoH come from one joint-EKF inside the supervisor
+    # (config.estimate_online); no separate filter is run here.
     soc_log = np.empty((n, sup.pack.n_cells))
     v_log = np.empty((n, sup.pack.n_cells))
     T_log = np.empty((n, sup.pack.n_cells))
@@ -577,6 +578,9 @@ def run_sim(n_cells: int, n_parallel: int, chemistry: str, seed: int,
     soe_log = np.empty(n)
     ekf_soc_log = np.full(n, np.nan)
     ekf_sigma_log = np.full(n, np.nan)
+    soh_est_log = np.full(n, np.nan)
+    soh_sigma_log = np.full(n, np.nan)
+    cap_est_log = np.full(n, np.nan)
     state_log: list[str] = []
     fault_alerts: list[dict] = []
     bal_log: list[str] = []
@@ -611,12 +615,13 @@ def run_sim(n_cells: int, n_parallel: int, chemistry: str, seed: int,
         bal_log.append(out["balancer"])
         derate_log.append(out.get("derated", False))
 
-        if ekf is not None:
-            v_meas = inj.apply_to_voltage_meas(out["v_cells"], k)
-            ekf_soc_log[k] = ekf.update(float(i_log[k]), float(v_meas[0]),
-                                          dt=1.0,
-                                          temperature_C=float(out["T_cells"][0]))
-            ekf_sigma_log[k] = ekf.soc_uncertainty_1sigma
+        # SoC + SoH from the supervisor's online joint-EKF (one filter).
+        if show_ekf:
+            ekf_soc_log[k] = out["soc_estimated"]
+            ekf_sigma_log[k] = out["soc_sigma"]
+        soh_est_log[k] = out["soh_estimated"]
+        soh_sigma_log[k] = out["soh_sigma"]
+        cap_est_log[k] = out["capacity_est_Ah"]
 
         if out["fault_label"] != "none":
             fault_alerts.append({
@@ -644,6 +649,7 @@ def run_sim(n_cells: int, n_parallel: int, chemistry: str, seed: int,
         i_load=i_log, power=p_log, peak_power=peak_p_log,
         soe=soe_log,
         ekf_soc=ekf_soc_log, ekf_sigma=ekf_sigma_log,
+        soh_est=soh_est_log, soh_sigma=soh_sigma_log, cap_est=cap_est_log,
         state=state_log, bal=bal_log, derate=derate_log,
         fault_alerts=fault_alerts,
         n_cells=sup.pack.n_cells,
@@ -663,7 +669,7 @@ def render_results(res: dict, show_ekf: bool, aging_cycles: int):
     props = get_chemistry_props(chem)
 
     # ── KPI cards ──────────────────────────────────────────────────────────
-    energy_Wh = float(np.trapezoid(np.abs(res["power"]), dx=1.0) / 3600)
+    energy_Wh = float(_trapz(np.abs(res["power"]), dx=1.0) / 3600)
     _total_cells = res["n_cells"] * n_par
     _pack_v_nom  = res["n_cells"] * props["nominal_voltage_V"]
     _pack_Ah_nom = n_par * props["default_capacity_Ah"]
@@ -724,7 +730,7 @@ def render_results(res: dict, show_ekf: bool, aging_cycles: int):
             fig_soc = plotly_lines(soc_df, "Per-group SOC", "SOC [-]")
             if show_ekf and not np.all(np.isnan(res["ekf_soc"])):
                 fig_soc.add_trace(go.Scatter(
-                    x=t, y=res["ekf_soc"], name="EKF (group 0)",
+                    x=t, y=res["ekf_soc"], name="joint-EKF SoC",
                     line=dict(color=_P["slate"], dash="dash", width=1.8),
                 ))
                 valid = ~np.isnan(res["ekf_sigma"])
@@ -736,7 +742,7 @@ def render_results(res: dict, show_ekf: bool, aging_cycles: int):
                         y=np.concatenate([upper[valid], lower[valid][::-1]]),
                         fill="toself", fillcolor="rgba(99,102,241,0.12)",
                         line=dict(color="rgba(0,0,0,0)"),
-                        name="EKF ±1σ", showlegend=True,
+                        name="joint-EKF ±1σ", showlegend=True,
                     ))
             st.plotly_chart(fig_soc, use_container_width=True)
 
@@ -838,6 +844,39 @@ def render_results(res: dict, show_ekf: bool, aging_cycles: int):
     with tab2:
         cap_nom = props["default_capacity_Ah"]
         r0_nom = props["default_ecm"]["R0"] * 1000
+
+        # Online SoH from the SAME joint-EKF that produced the SoC estimate.
+        if "soh_est" in res and not np.all(np.isnan(res["soh_est"])):
+            st.subheader("Online SoH — from the joint-EKF (one filter, SoC + SoH)")
+            soh_final = float(res["soh_est"][-1])
+            soh_sig = float(res["soh_sigma"][-1])
+            cap_final = float(res["cap_est"][-1])
+            mc = st.columns(3)
+            mc[0].metric("SoH estimate", f"{soh_final * 100:.1f}%",
+                         help="Capacity retention Q/Q₀ from the online joint-EKF.")
+            mc[1].metric("± 1σ", f"{soh_sig * 100:.1f}%",
+                         help="Capacity is observable only when SoC moves; σ stays "
+                              "wide under a flat load and tightens on charge/discharge.")
+            mc[2].metric("Estimated capacity", f"{cap_final:.3f} Ah",
+                         delta=f"{(cap_final - cap_nom):+.3f} vs nominal")
+            soh_t = pd.Series(res["soh_est"] * 100.0, index=t)
+            fig_soh = plotly_single(soh_t, "Online SoH estimate (Q/Q₀)", "SoH [%]",
+                                    color=_P["violet"])
+            band = ~np.isnan(res["soh_sigma"])
+            if band.any():
+                up = (res["soh_est"] + res["soh_sigma"]) * 100.0
+                lo = (res["soh_est"] - res["soh_sigma"]) * 100.0
+                fig_soh.add_trace(go.Scatter(
+                    x=np.concatenate([t[band], t[band][::-1]]),
+                    y=np.concatenate([up[band], lo[band][::-1]]),
+                    fill="toself", fillcolor="rgba(139,92,246,0.12)",
+                    line=dict(color="rgba(0,0,0,0)"), name="±1σ", showlegend=True))
+            st.plotly_chart(fig_soh, use_container_width=True)
+            st.caption("This is the **online** SoH (estimated live from the running "
+                       "pack). The charts below are the **offline** aging model — "
+                       "capacity fade / resistance growth / RUL over many cycles.")
+            st.divider()
+
         st.subheader(f"Capacity fade + resistance growth — {chem.upper()}")
 
         aging_df = load_nasa_like_dataset(cycles=aging_cycles,
