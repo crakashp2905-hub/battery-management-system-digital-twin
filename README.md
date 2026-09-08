@@ -305,9 +305,13 @@ to explain *why* it fired.
 
 ## Interactive dashboard
 
-`streamlit run app/streamlit_app.py` opens a two-mode Plotly app: **🔬 Simulation** (chemistry, SxP
+`streamlit run app/streamlit_app.py` opens a four-mode Plotly app: **🔬 Simulation** (chemistry, SxP
 topology, current/power load, fault injection; tabs for Live Signals, SoH & Aging, Battery Passport,
-Diagnostics, Fault Analysis) and **🚗 Range Predictor**.
+Diagnostics, Fault Analysis), **🚗 Range Predictor**, **🔋 Charging & Aging**, and
+**🔌 Hardware & Agent** — self-contained demos of the CAN/DBC bus (frame table, live integrity
+monitor, downloadable `bms.dbc`), the RC pre-charge plant (interactive inrush/energy), the
+deterministic diagnostic agent (findings → gated actions), real-data calibration (estimator
+leaderboard + pulse parameter-ID), and mechanical gas/pressure sensing (pressure-leads-temperature).
 
 ---
 

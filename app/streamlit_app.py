@@ -36,6 +36,7 @@ from plotly.subplots import make_subplots
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import bms  # module handle for the hardware/agent surfaces (CAN, pre-charge, agent, …)
 from bms import (
     INDIA_CITY_ROUTES,
     INDIA_WEATHER,
@@ -1749,9 +1750,285 @@ def render_charging_aging():
     st.info(explain_charge(res))
 
 
+def _severity_badge(sev: str) -> str:
+    color = {"ok": _P["emerald"], "info": _P["cyan"], "warning": _P["amber"],
+             "critical": _P["rose"]}.get(sev, _P["slate"])
+    return (f"<span style='background:{_hex_fill(color, .16)};color:{color};"
+            f"font-weight:800;padding:3px 12px;border-radius:999px;"
+            f"font-size:.8rem;text-transform:uppercase'>{sev}</span>")
+
+
+def render_hardware_agent():
+    """Surface the hardware-realism + safety-agent modules that don't come out of
+    a single simulation run: CAN/DBC, the RC pre-charge plant, the diagnostic
+    agent, real-data calibration, and mechanical (gas/pressure) sensing."""
+    st.subheader("🔌 Hardware realism & safety agent")
+    st.caption("Self-contained demos of the CAN/DBC bus, the DC-link pre-charge "
+               "plant, the deterministic diagnostic agent, real-data calibration, "
+               "and mechanical (gas/pressure) fault sensing.")
+    a, b, c, d, e = st.tabs([
+        "🛰 CAN / DBC bus", "⚡ Pre-charge (RC)", "🩺 Diagnostic agent",
+        "🎯 Calibration", "🧪 Mechanics (gas/pressure)"])
+
+    # ── A. CAN / DBC ──────────────────────────────────────────────────────────
+    with a:
+        st.markdown(
+            "Compact CAN 2.0B broadcast set with a **bus-health frame** "
+            "(rolling alive counter · additive checksum over the status frame · "
+            "tx count) and a shipped, `cantools`-validated **`bms.dbc`**.")
+        pack = BatteryPack(PackConfig(n_cells=4, seed=2))
+        thermal = ThermalModel(n_cells=4)
+        sup = BMSSupervisor(pack, thermal, trained_detector("nmc"))
+        result = sup.step(3.0, 1.0)
+        sop = bms.StateOfPower().calculate(
+            pack, result["T_cells"], result["cmd_current"], result["v_cells"])
+        bus = bms.BMSCanBus()
+        frames = bus.broadcast(result, sop)
+
+        corrupt = st.checkbox("Inject a checksum error into the health frame",
+                              key="can_corrupt",
+                              help="Flip a byte in the status frame so the "
+                                   "receiver's checksum no longer matches.")
+        rows = []
+        for f in frames:
+            parsed = bus.parse(f)
+            sig = {k: v for k, v in parsed.items() if k != "message"}
+            rows.append({
+                "ID": f"0x{f.arbitration_id:03X}", "message": parsed["message"],
+                "payload (hex)": f.data.hex(" "),
+                "signals": ", ".join(
+                    f"{k}={round(v, 3) if isinstance(v, float) else v}"
+                    for k, v in list(sig.items())[:4]),
+            })
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+        # Receiver-side integrity monitor over the just-built frames.
+        mon = bms.CanBusMonitor(timeout_s=0.5)
+        status, health = frames[0], frames[-1]
+        status_bytes = (bytes([status.data[0] ^ 0xFF]) + status.data[1:]
+                        if corrupt else status.data)
+        health_fields = bus.parse(health)
+        for i, f in enumerate(frames):
+            mon.receive(f, t=i * 0.01)
+        alive_ok = mon.alive_ok(health_fields["alive_counter"])
+        csum_ok = mon.checksum_ok(status_bytes, health_fields["status_checksum"])
+        fresh = not mon.is_stale(bus.STATUS_ID, now=0.1)
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Freshness", "OK" if fresh else "STALE")
+        m2.metric("Alive continuity", "OK" if alive_ok else "SKIP")
+        m3.metric("Status checksum", "OK" if csum_ok else "MISMATCH",
+                  delta=None if csum_ok else "corrupted", delta_color="inverse")
+        m4.metric("Bus error counter (TEC)", mon.error_count,
+                  help="ISO 11898: +8 per error, −1 per success; bus-off at ≥256.")
+        if not csum_ok:
+            st.error("Checksum mismatch → the receiver rejects the frame and the "
+                     "CAN error counter climbs. Sustained errors (TEC ≥ 256) drive "
+                     "the node **bus-off**.")
+        else:
+            st.success("All integrity checks pass — the frame is trusted.")
+
+        dbc_text = bus.to_dbc()
+        st.download_button("⬇ Download bms.dbc", dbc_text, file_name="bms.dbc",
+                           mime="text/plain", key="dbc_dl")
+        with st.expander("View bms.dbc (Vector DBC)"):
+            st.code(dbc_text, language="text")
+
+    # ── B. Pre-charge (RC plant) ──────────────────────────────────────────────
+    with b:
+        st.markdown(
+            "The DC-link pre-charge as a **physical RC plant**, not a timer: a "
+            "pre-charge resistor charges the inverter bus capacitor through "
+            r"$V_{dc}(t)=V_{pack}\,(1-e^{-t/RC})$. The resistor must survive the "
+            "**inrush** ($V_{pack}/R$ at $t{=}0$) and the **energy** it burns.")
+        cc = st.columns(3)
+        r_ohm = cc[0].slider("Pre-charge resistor R [Ω]", 2.0, 100.0, 22.0, 1.0,
+                             key="pc_r")
+        c_mf = cc[1].slider("DC-link capacitor C [mF]", 0.1, 5.0, 1.0, 0.1,
+                            key="pc_c")
+        v_pack = cc[2].slider("Pack voltage [V]", 48.0, 800.0, 400.0, 8.0,
+                              key="pc_v")
+        circ = bms.PrechargeCircuit(resistance_ohm=r_ohm, capacitance_F=c_mf * 1e-3)
+        dt = circ.tau_s / 20.0
+        n = int(6.0 * circ.tau_s / dt)
+        t_axis, v_dc, inrush, t95 = [], [], [], None
+        for i in range(n):
+            step = circ.step(v_pack, dt)
+            t_axis.append(i * dt * 1e3)                 # ms
+            v_dc.append(step["dc_link_voltage_V"])
+            inrush.append(step["inrush_current_A"])
+            if t95 is None and circ.ratio(v_pack) >= 0.95:
+                t95 = i * dt * 1e3
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+        fig.add_trace(go.Scatter(x=t_axis, y=v_dc, name="V_dc", line=dict(
+            color=_P["indigo"], width=2.4)), secondary_y=False)
+        fig.add_trace(go.Scatter(x=t_axis, y=inrush, name="inrush I",
+                                 line=dict(color=_P["amber"], width=2.0)),
+                      secondary_y=True)
+        fig.add_hline(y=0.95 * v_pack, line_dash="dot", line_color=_P["emerald"],
+                      annotation_text="  95% of pack", annotation_font_size=11)
+        fig.update_xaxes(title_text="time [ms]")
+        fig.update_yaxes(title_text="DC-link voltage [V]", secondary_y=False)
+        fig.update_yaxes(title_text="resistor current [A]", secondary_y=True)
+        fig.update_layout(title="RC pre-charge transient", height=330,
+                          legend=dict(orientation="h", y=1.02, x=1, xanchor="right"))
+        st.plotly_chart(fig, use_container_width=True)
+        g = st.columns(4)
+        g[0].metric("τ = RC", f"{circ.tau_s * 1e3:.1f} ms")
+        g[1].metric("Peak inrush", f"{v_pack / r_ohm:.1f} A")
+        g[2].metric("Time to 95%", f"{t95:.0f} ms" if t95 else "—",
+                    help="≈ 3·τ")
+        g[3].metric("Resistor energy", f"{circ.resistor_energy_J:.1f} J",
+                    help="Energy burned in R over the charge — sizes its pulse "
+                         "rating; equals ½·C·V² once fully charged.")
+
+    # ── C. Diagnostic agent ───────────────────────────────────────────────────
+    with c:
+        st.markdown(
+            "The agent **decides, never actuates**. Findings → **deterministic** "
+            "`ProposedAction`s (an LLM can only phrase the report, never mint a "
+            "command), and an **`ActionGate`** holds every actuating action until "
+            "an operator approves it.")
+        scenarios = bms.evaluation_scenarios()
+        name = st.selectbox("Scenario", list(scenarios), key="agent_scn")
+        approve = st.checkbox("Operator approves high-risk actions (ActionGate)",
+                              key="agent_gate")
+        scn = scenarios[name]
+        report = bms.DiagnosticAgent().diagnose(**scn["inputs"])
+        st.markdown(f"**Severity** {_severity_badge(report.severity)}",
+                    unsafe_allow_html=True)
+        st.write(report.summary)
+        if report.findings:
+            st.dataframe(pd.DataFrame([
+                {"signal": f.signal, "detail": f.detail, "severity": f.severity}
+                for f in report.findings], ), hide_index=True,
+                use_container_width=True)
+        else:
+            st.success("All signals nominal — no findings.")
+
+        gate = bms.ActionGate(approver=lambda a: approve)
+        if report.proposed_actions:
+            st.markdown("**Proposed actions** (gated):")
+            arows = []
+            for act in report.proposed_actions:
+                allowed = gate.authorize(act)
+                arows.append({
+                    "kind": act.kind, "target": act.target, "risk": act.risk,
+                    "needs approval": "yes" if act.requires_approval else "no",
+                    "status": "✅ authorized" if allowed else "⛔ blocked",
+                    "rationale": act.rationale})
+            st.dataframe(pd.DataFrame(arows), hide_index=True,
+                         use_container_width=True)
+            if not approve and any(a.requires_approval for a in report.proposed_actions):
+                st.warning("Actuating actions are **blocked** by deny-by-default. "
+                           "Tick the approval box to release them.")
+        else:
+            st.info("No control actions proposed for this scenario.")
+
+        with st.expander("Telemetry redaction (before any hosted LLM)"):
+            raw = {"cell_id": "SN-4471-A", "gps": "12.97,77.59",
+                   "owner_email": "driver@example.com", "pack_voltage_V": 397.2}
+            st.json({"raw": raw, "redacted": bms.redact_telemetry(raw)})
+
+    # ── D. Calibration & leaderboard ──────────────────────────────────────────
+    with d:
+        st.markdown(
+            "Bridge from simulator to **data-calibrated** twin: rank estimators on "
+            "a drive cycle, and recover ECM parameters from a pulse.")
+        chem = st.selectbox("Chemistry", ["nmc", "lfp", "nca"], key="cal_chem")
+        data = bms.synthetic_drivecycle(chem, duration_s=1200, seed=1)
+        board = bms.estimator_leaderboard(data).reset_index()
+        cL, cR = st.columns([3, 2])
+        with cL:
+            fig = go.Figure(go.Bar(
+                x=board["estimator"], y=board["rmse"] * 100,
+                marker_color=_P["indigo"],
+                hovertemplate="%{x}<br>RMSE=%{y:.2f}%<extra></extra>"))
+            fig.update_layout(title="SoC RMSE by estimator", height=300,
+                              yaxis_title="SoC RMSE [%]")
+            st.plotly_chart(fig, use_container_width=True)
+        with cR:
+            show = board.copy()
+            show["rmse"] = (show["rmse"] * 100).round(2)
+            show["mae"] = (show["mae"] * 100).round(2)
+            st.dataframe(show[["estimator", "rmse", "mae", "runtime_s"]],
+                         hide_index=True, use_container_width=True)
+            st.caption("RMSE/MAE in SoC %. Source: "
+                       f"**{data.source}** ({data.name}).")
+
+        st.markdown("**ECM parameter-ID from a pulse** (`fit_from_pulse`)")
+        ocv = bms.OCVSOC()
+        true = ECMParameters(R0=0.028, R1=0.014, C1=2200, R2=0.03, C2=9000,
+                             Q_nom_Ah=2.3)
+        ecm = bms.SecondOrderECM(params=true, ocv_curve=ocv)
+        ecm.reset(0.8)
+        cur = np.zeros(1200)
+        cur[100:250] = 2.3
+        cur[400:550] = -2.3
+        cur[700:1000] = 1.15
+        sim = ecm.simulate(cur, 1.0)
+        volt = sim["v_terminal"] + np.random.default_rng(0).normal(0, 0.002, 1200)
+        fit = bms.fit_from_pulse(cur, volt, 1.0, capacity_Ah=2.3)
+        st.dataframe(pd.DataFrame([
+            {"param": "R0 [mΩ]", "true": 28.0, "recovered": round(fit.params.R0 * 1e3, 2)},
+            {"param": "R1 [mΩ]", "true": 14.0, "recovered": round(fit.params.R1 * 1e3, 2)},
+            {"param": "R2 [mΩ]", "true": 30.0, "recovered": round(fit.params.R2 * 1e3, 2)},
+        ]), hide_index=True, use_container_width=True)
+        st.caption(f"Voltage-fit RMSE **{fit.rmse_v * 1e3:.1f} mV** · "
+                   f"success={fit.success}")
+
+    # ── E. Mechanics (gas/pressure) ───────────────────────────────────────────
+    with e:
+        st.markdown(
+            "Pressure and gas **lead temperature**: gas generation is Arrhenius in "
+            "temperature, so internal pressure and dP/dt cross a warning threshold "
+            "**before** temperature reaches runaway — earlier warning than a "
+            "temperature limit alone.")
+        model = bms.PressureModel()
+        det = bms.MechanicalFaultDetector()
+        state = bms.CellMechanicalState()
+        props = get_chemistry_props("nmc")
+        t_runaway = float(props["T_runaway_C"])
+        temps = np.linspace(25.0, t_runaway + 10.0, 500)
+        pres, prev_p, warn_i, runaway_i = [], state.pressure_kPa, None, None
+        for i, tc in enumerate(temps):
+            model.update(state, float(tc), soc=0.9, dt=1.0)
+            label, _ = det.predict_step(state, prev_pressure_kPa=prev_p, dt=1.0)
+            prev_p = state.pressure_kPa
+            pres.append(state.pressure_kPa)
+            if warn_i is None and label != FaultMode.NONE.value:
+                warn_i = i
+            if runaway_i is None and tc >= t_runaway:
+                runaway_i = i
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+        fig.add_trace(go.Scatter(x=list(range(len(temps))), y=pres, name="pressure",
+                                 line=dict(color=_P["violet"], width=2.4)),
+                      secondary_y=False)
+        fig.add_trace(go.Scatter(x=list(range(len(temps))), y=temps, name="temperature",
+                                 line=dict(color=_P["rose"], width=2.0)),
+                      secondary_y=True)
+        if warn_i is not None:
+            fig.add_vline(x=warn_i, line_dash="dot", line_color=_P["amber"],
+                          annotation_text=" pressure warns", annotation_font_size=11)
+        if runaway_i is not None:
+            fig.add_vline(x=runaway_i, line_dash="dot", line_color=_P["rose"],
+                          annotation_text=" T runaway", annotation_font_size=11)
+        fig.update_xaxes(title_text="step [s]")
+        fig.update_yaxes(title_text="pressure [kPa]", secondary_y=False)
+        fig.update_yaxes(title_text="temperature [°C]", secondary_y=True)
+        fig.update_layout(title="Pressure leads temperature", height=330,
+                          legend=dict(orientation="h", y=1.02, x=1, xanchor="right"))
+        st.plotly_chart(fig, use_container_width=True)
+        if warn_i is not None and runaway_i is not None:
+            st.metric("Early-warning lead time", f"{runaway_i - warn_i} s",
+                      help="Pressure/gas warning fires this many seconds before "
+                           "temperature reaches the runaway threshold.")
+
+
 # ── Top-level tab bar ────────────────────────────────────────────────────────
-_sim_tab, _rp_tab, _charge_tab = st.tabs(
-    ["🔬 Simulation", "🚗 Range Predictor", "🔋 Charging & Aging"])
+_sim_tab, _rp_tab, _charge_tab, _hw_tab = st.tabs(
+    ["🔬 Simulation", "🚗 Range Predictor", "🔋 Charging & Aging",
+     "🔌 Hardware & Agent"])
 
 with _sim_tab:
     if "bms_res" in st.session_state:
@@ -1815,3 +2092,6 @@ with _rp_tab:
 
 with _charge_tab:
     render_charging_aging()
+
+with _hw_tab:
+    render_hardware_agent()
