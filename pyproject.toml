@@ -38,6 +38,7 @@ notebook = ["jupyter>=1.0", "nbformat>=5.9", "matplotlib>=3.7"]
 dev = ["pytest>=7.4", "pytest-cov>=4.0", "ruff>=0.5"]
 onnx = ["onnxruntime>=1.16"]                       # framework-neutral estimators
 agent = ["langchain-core>=0.2", "langgraph>=0.2", "langfuse>=2.0"]  # LLM diagnostic agent
+can = ["cantools>=39"]                              # validate/consume the shipped bms.dbc
 
 [project.urls]
 Homepage = "https://github.com/crakashp2905-hub/battery-management-system-digital-twin"

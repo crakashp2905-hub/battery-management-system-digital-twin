@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.15.0"
+__version__ = "0.16.0"
 
 from .agent import (
     ActionGate,
@@ -55,7 +55,7 @@ from .calibration import (
     fit_from_pulse,
     validation_report,
 )
-from .can import BMSCanBus, CANFrame
+from .can import BMSCanBus, CanBusMonitor, CANFrame, can_checksum
 from .charging import (
     METHOD_POWER_KW,
     ChargeMethod,
@@ -70,6 +70,7 @@ from .control import (
     BMSState,
     BMSSupervisor,
     ContactorState,
+    PrechargeCircuit,
     PrechargeContactorSequencer,
     SupervisorConfig,
 )
@@ -172,8 +173,9 @@ __all__ = [
     "RollingFeatureBuffer", "extract_features",
     "build_fmea_table", "estimate_rul", "estimate_rul_with_resistance",
     "BMSSupervisor", "BMSState", "SupervisorConfig", "ContactorState",
-    "PrechargeContactorSequencer", "SOPConfig", "SOPLimit", "StateOfPower",
-    "CANFrame", "BMSCanBus",
+    "PrechargeContactorSequencer", "PrechargeCircuit",
+    "SOPConfig", "SOPLimit", "StateOfPower",
+    "CANFrame", "BMSCanBus", "CanBusMonitor", "can_checksum",
     "generate_load_profile", "generate_power_profile",
     "generate_cccv_profile",
     "load_nasa_like_dataset", "generate_aging_profile",

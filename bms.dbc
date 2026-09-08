@@ -1,0 +1,50 @@
+VERSION ""
+
+BS_:
+
+BU_: BMS
+
+BO_ 384 BMS_Status: 8 BMS
+ SG_ pack_voltage_V : 0|16@1+ (0.01,0) [0|655.35] "V" Vector__XXX
+ SG_ pack_current_A : 16|16@1- (0.1,0) [-3276.8|3276.7] "A" Vector__XXX
+ SG_ soc_pct : 32|16@1+ (0.1,0) [0|100] "%" Vector__XXX
+ SG_ state_code : 48|8@1+ (1,0) [0|255] "" Vector__XXX
+ SG_ fault_code : 56|8@1+ (1,0) [0|255] "" Vector__XXX
+
+BO_ 385 BMS_CellExtrema: 8 BMS
+ SG_ cell_voltage_min_V : 0|16@1+ (0.001,0) [0|65.535] "V" Vector__XXX
+ SG_ cell_voltage_max_V : 16|16@1+ (0.001,0) [0|65.535] "V" Vector__XXX
+ SG_ soc_min_pct : 32|8@1+ (0.5,0) [0|100] "%" Vector__XXX
+ SG_ soc_max_pct : 40|8@1+ (0.5,0) [0|100] "%" Vector__XXX
+ SG_ series_groups : 48|16@1+ (1,0) [0|65535] "" Vector__XXX
+
+BO_ 386 BMS_Thermal: 8 BMS
+ SG_ temperature_min_C : 0|16@1- (0.1,0) [-3276.8|3276.7] "degC" Vector__XXX
+ SG_ temperature_max_C : 16|16@1- (0.1,0) [-3276.8|3276.7] "degC" Vector__XXX
+ SG_ temperature_spread_C : 32|16@1- (0.1,0) [0|3276.7] "degC" Vector__XXX
+ SG_ cooling_duty_pct : 48|8@1+ (1,0) [0|100] "%" Vector__XXX
+
+BO_ 387 BMS_SOP_2s: 8 BMS
+ SG_ traction_power_W : 0|16@1+ (1,0) [0|65535] "W" Vector__XXX
+ SG_ regen_power_W : 16|16@1+ (1,0) [0|65535] "W" Vector__XXX
+ SG_ traction_current_A : 32|16@1+ (0.1,0) [0|6553.5] "A" Vector__XXX
+ SG_ regen_current_A : 48|16@1+ (0.1,0) [0|6553.5] "A" Vector__XXX
+
+BO_ 388 BMS_SOP_10s: 8 BMS
+ SG_ traction_power_W : 0|16@1+ (1,0) [0|65535] "W" Vector__XXX
+ SG_ regen_power_W : 16|16@1+ (1,0) [0|65535] "W" Vector__XXX
+ SG_ traction_current_A : 32|16@1+ (0.1,0) [0|6553.5] "A" Vector__XXX
+ SG_ regen_current_A : 48|16@1+ (0.1,0) [0|6553.5] "A" Vector__XXX
+
+BO_ 389 BMS_SOP_30s: 8 BMS
+ SG_ traction_power_W : 0|16@1+ (1,0) [0|65535] "W" Vector__XXX
+ SG_ regen_power_W : 16|16@1+ (1,0) [0|65535] "W" Vector__XXX
+ SG_ traction_current_A : 32|16@1+ (0.1,0) [0|6553.5] "A" Vector__XXX
+ SG_ regen_current_A : 48|16@1+ (0.1,0) [0|6553.5] "A" Vector__XXX
+
+BO_ 390 BMS_Health: 8 BMS
+ SG_ alive_counter : 0|8@1+ (1,0) [0|255] "" Vector__XXX
+ SG_ status_checksum : 8|8@1+ (1,0) [0|255] "" Vector__XXX
+ SG_ tx_count : 16|16@1+ (1,0) [0|65535] "" Vector__XXX
+ SG_ bus_off : 32|8@1+ (1,0) [0|1] "" Vector__XXX
+

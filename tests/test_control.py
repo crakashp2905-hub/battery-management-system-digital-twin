@@ -110,6 +110,66 @@ class TestPrechargeContactors:
         assert seq.update(400.0, 0.0, 1.0) == bms.ContactorState.FAULT
 
 
+class TestPrechargeCircuit:
+    def test_rc_charges_toward_pack_voltage(self):
+        circ = bms.PrechargeCircuit(resistance_ohm=22.0, capacitance_F=1e-3)
+        assert circ.tau_s == pytest.approx(0.022)
+        vp = 400.0
+        # After 3τ the bus should be ~95 % of pack; at 5τ ~99 %.
+        for _ in range(3):
+            circ.step(vp, circ.tau_s)
+        assert circ.ratio(vp) == pytest.approx(1 - np.exp(-3), abs=0.02)
+        for _ in range(2):
+            circ.step(vp, circ.tau_s)
+        assert circ.v_dc == pytest.approx(vp * (1 - np.exp(-5)), abs=vp * 0.01)
+
+    def test_peak_inrush_is_at_t0_and_tracked(self):
+        circ = bms.PrechargeCircuit(resistance_ohm=20.0, capacitance_F=1e-3)
+        vp = 400.0
+        first = circ.step(vp, 0.001)
+        # Peak inrush = V_pack / R at t=0 (empty cap).
+        assert first["inrush_current_A"] == pytest.approx(vp / 20.0)
+        assert circ.peak_inrush_A == pytest.approx(vp / 20.0)
+        later = circ.step(vp, 0.001)
+        assert later["inrush_current_A"] < first["inrush_current_A"]  # decays
+        assert circ.peak_inrush_A == pytest.approx(vp / 20.0)         # peak retained
+
+    def test_resistor_energy_approaches_half_c_v_squared(self):
+        circ = bms.PrechargeCircuit(resistance_ohm=22.0, capacitance_F=1e-3)
+        vp = 400.0
+        for _ in range(2000):
+            circ.step(vp, 0.001)          # ~90τ → essentially fully charged
+        expected = 0.5 * 1e-3 * vp ** 2   # energy burned in R equals energy stored
+        assert circ.resistor_energy_J == pytest.approx(expected, rel=0.02)
+
+    def test_reset_clears_state(self):
+        circ = bms.PrechargeCircuit()
+        circ.step(400.0, 0.05)
+        assert circ.v_dc > 0.0
+        circ.reset()
+        assert circ.v_dc == 0.0 and circ.peak_inrush_A == 0.0
+        assert circ.resistor_energy_J == 0.0
+
+    def test_supervisor_simulate_precharge_closes_without_external_voltage(self):
+        cfg = bms.SupervisorConfig(simulate_precharge=True,
+                                   precharge_resistance_ohm=5.0,
+                                   precharge_capacitance_F=1e-3)
+        pack = bms.BatteryPack(bms.PackConfig(n_cells=4, seed=7))
+        sup = bms.BMSSupervisor(pack, bms.ThermalModel(n_cells=4),
+                                bms.HybridFaultDetector(), config=cfg)
+        sup.open_contactors()
+        assert sup.start_precharge()
+        # No dc_link_voltage_V supplied — the internal RC plant provides it.
+        closed = None
+        for _ in range(20):
+            out = sup.step(10.0, 0.02, dc_link_voltage_V=None)
+            if out["contactor_state"] == "closed":
+                closed = out
+                break
+        assert closed is not None                 # bus charged and main contactor closed
+        assert sup.precharge_circuit.peak_inrush_A > 0.0
+
+
 
 class TestSoHAwareControl:
     def _sup(self, **cfg_kw):
