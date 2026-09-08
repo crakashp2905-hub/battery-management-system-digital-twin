@@ -123,6 +123,80 @@ class PrechargeContactorSequencer:
 
 
 @dataclass
+class PrechargeCircuit:
+    """Physical DC-link pre-charge model: a resistor charging the inverter's
+    bus capacitor through a first-order RC transient.
+
+    Where :class:`PrechargeContactorSequencer` is the *logic* (when may the main
+    contactor close), this is the *plant* that produces the DC-link voltage that
+    logic reads.  Closing the pre-charge relay applies the pack across
+    ``resistance_ohm`` in series with ``capacitance_F``::
+
+        V_dc(t) = V_pack · (1 − e^(−t/RC))
+        I(t)    = (V_pack − V_dc) / R          (peaks at V_pack/R when t = 0)
+
+    The step integrates the exact RC solution over ``dt`` (unconditionally
+    stable for any step size), tracks peak inrush current, and accumulates the
+    energy burned in the resistor — the number that sizes the resistor's pulse
+    rating.  ``resistance_ohm`` and ``capacitance_F`` default to a typical
+    ~400 V traction inverter (a 22 Ω pre-charge resistor, 1 mF bus film cap →
+    τ = 22 ms, ~18 A peak at 400 V).
+    """
+
+    resistance_ohm: float = 22.0
+    capacitance_F: float = 1e-3
+    v_dc: float = 0.0
+    peak_inrush_A: float = 0.0
+    resistor_energy_J: float = 0.0
+
+    @property
+    def tau_s(self) -> float:
+        """RC time constant [s]; the bus reaches ~95 % of pack in 3·τ."""
+        return self.resistance_ohm * self.capacitance_F
+
+    def reset(self) -> None:
+        self.v_dc = 0.0
+        self.peak_inrush_A = 0.0
+        self.resistor_energy_J = 0.0
+
+    def inrush_current_A(self, pack_voltage_V: float) -> float:
+        """Instantaneous resistor current for the present bus voltage."""
+        return (float(pack_voltage_V) - self.v_dc) / max(self.resistance_ohm, 1e-9)
+
+    def ratio(self, pack_voltage_V: float) -> float:
+        """DC-link voltage as a fraction of pack voltage (the sequencer target)."""
+        return self.v_dc / float(pack_voltage_V) if abs(pack_voltage_V) > 1e-9 else 0.0
+
+    def step(self, pack_voltage_V: float, dt: float) -> dict:
+        """Advance the bus voltage by ``dt`` and return DC-link telemetry.
+
+        Returns ``dc_link_voltage_V``, ``inrush_current_A`` (at the start of the
+        step, i.e. the worst case within it), ``ratio``, ``peak_inrush_A``, and
+        ``resistor_energy_J``.
+        """
+        vp = float(pack_voltage_V)
+        dt = max(0.0, float(dt))
+        i0 = self.inrush_current_A(vp)                 # worst case is start-of-step
+        self.peak_inrush_A = max(self.peak_inrush_A, abs(i0))
+        tau = self.tau_s
+        if tau > 1e-12 and dt > 0.0:
+            decay = float(np.exp(-dt / tau))
+            v_next = vp - (vp - self.v_dc) * decay
+            # Energy dissipated in R over the step: ∫ i²R dt with i decaying.
+            # ∫₀ᵈᵗ i0²e^(−2t/τ)·R dt = i0²R·(τ/2)(1 − e^(−2·dt/τ)).
+            self.resistor_energy_J += (i0 * i0 * self.resistance_ohm
+                                       * 0.5 * tau * (1.0 - decay * decay))
+            self.v_dc = v_next
+        return {
+            "dc_link_voltage_V": self.v_dc,
+            "inrush_current_A": i0,
+            "ratio": self.ratio(vp),
+            "peak_inrush_A": self.peak_inrush_A,
+            "resistor_energy_J": self.resistor_energy_J,
+        }
+
+
+@dataclass
 class SupervisorConfig:
     imbalance_inductor: float = 0.05
     imbalance_sc: float = 0.02
@@ -144,6 +218,12 @@ class SupervisorConfig:
     cooling_ff_gain: float = 0.02
     precharge_target_ratio: float = 0.95
     precharge_timeout_s: float = 5.0
+    # Physical DC-link pre-charge: when True and no measured dc_link_voltage_V
+    # is supplied, the supervisor simulates the RC bus transient internally so
+    # the sequencer sees a realistic rising voltage instead of timing out.
+    simulate_precharge: bool = False
+    precharge_resistance_ohm: float = 22.0
+    precharge_capacitance_F: float = 1e-3
     # SoH-aware control: derate current as the pack ages, and cap the charge
     # C-rate below the lithium-plating threshold.  Off by default (SoH = 1 →
     # identical behaviour to before).
@@ -188,6 +268,11 @@ class BMSSupervisor:
         self.contactor = PrechargeContactorSequencer(
             target_ratio=self.config.precharge_target_ratio,
             timeout_s=self.config.precharge_timeout_s,
+        )
+        # Physical DC-link plant (used only when config.simulate_precharge).
+        self.precharge_circuit = PrechargeCircuit(
+            resistance_ohm=self.config.precharge_resistance_ohm,
+            capacitance_F=self.config.precharge_capacitance_F,
         )
 
         # Battery Passport — initialised from chemistry props
@@ -315,6 +400,9 @@ class BMSSupervisor:
         # fault, never by force-closing the contactor.
         precharge_gating = False
         if self.contactor.state == ContactorState.PRECHARGING:
+            if dc_link_voltage_V is None and self.config.simulate_precharge:
+                dc_link_voltage_V = self.precharge_circuit.step(
+                    self.pack.pack_voltage(), dt)["dc_link_voltage_V"]
             self.contactor.update(self.pack.pack_voltage(), dc_link_voltage_V, dt)
             if self.contactor.state == ContactorState.FAULT:
                 self.state = BMSState.FAULT
@@ -491,6 +579,7 @@ class BMSSupervisor:
         started = self.contactor.start()
         if started:
             self.state = BMSState.PRECHARGE
+            self.precharge_circuit.reset()
         return started
 
     # ------------------------------------------------------------------

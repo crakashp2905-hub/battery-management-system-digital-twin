@@ -32,6 +32,11 @@ class CANFrame:
             raise ValueError("BMS telemetry frames must contain exactly 8 bytes")
 
 
+def can_checksum(data: bytes) -> int:
+    """8-bit additive checksum over a frame payload (0–255)."""
+    return sum(bytes(data)) & 0xFF
+
+
 class BMSCanBus:
     """Encode and decode a compact, DBC-compatible BMS broadcast set."""
 
@@ -41,6 +46,7 @@ class BMSCanBus:
     SOP_2S_ID = 0x183
     SOP_10S_ID = 0x184
     SOP_30S_ID = 0x185
+    HEALTH_ID = 0x186
     SOP_IDS = {2.0: SOP_2S_ID, 10.0: SOP_10S_ID, 30.0: SOP_30S_ID}
 
     STATE_CODES = {"idle": 0, "precharge": 1, "operating": 2,
@@ -49,6 +55,10 @@ class BMSCanBus:
                    "thermal_runaway": 3, "sensor_dropout": 4,
                    "sensor_bias": 5, "undervoltage": 6, "gas_venting": 7,
                    "internal_short": 8, "swelling": 9, "electrolyte_leak": 10}
+
+    def __init__(self) -> None:
+        self._alive = 0        # rolling 0–255 alive counter (transmitter health)
+        self._tx_count = 0     # total frames transmitted (rolling u16)
 
     @staticmethod
     def _u16(value: float, scale: float) -> int:
@@ -110,12 +120,28 @@ class BMSCanBus:
         )
         return CANFrame(identifier, payload)
 
+    def health_frame(self, status_data: bytes, bus_off: bool = False) -> CANFrame:
+        """Bus-health frame: alive counter, status checksum, tx count, bus-off flag."""
+        payload = struct.pack("<BBHBBBB", self._alive & 0xFF,
+                              can_checksum(status_data), self._tx_count & 0xFFFF,
+                              int(bool(bus_off)), 0, 0, 0)
+        return CANFrame(self.HEALTH_ID, payload)
+
     def broadcast(self, result: dict, sop: dict[float, SOPLimit]) -> list[CANFrame]:
-        """Build the complete status/cell/thermal/SOP broadcast cycle."""
-        frames = [self.status_frame(result),
+        """Build the status/cell/thermal/SOP cycle plus a bus-health frame.
+
+        Each call advances the rolling alive counter, so a receiver can detect a
+        stalled transmitter; the health frame carries a checksum over the status
+        frame for integrity checking.
+        """
+        status = self.status_frame(result)
+        frames = [status,
                   self.cell_extrema_frame(result["v_cells"], result["soc"]),
                   self.thermal_frame(result["T_cells"], result["cooling_duty"])]
         frames.extend(self.sop_frame(sop[h]) for h in sorted(sop) if h in self.SOP_IDS)
+        self._alive = (self._alive + 1) & 0xFF
+        self._tx_count = (self._tx_count + len(frames) + 1) & 0xFFFF
+        frames.append(self.health_frame(status.data))
         return frames
 
     def parse(self, frame: CANFrame) -> dict:
@@ -143,7 +169,98 @@ class BMSCanBus:
             return {"message": f"BMS_SOP_{int(horizon)}s", "horizon_s": horizon,
                     "traction_power_W": float(traction), "regen_power_W": float(regen),
                     "traction_current_A": current * 0.1, "regen_current_A": regen_i * 0.1}
+        if frame.arbitration_id == self.HEALTH_ID:
+            alive, checksum, tx, bus_off, _r1, _r2, _r3 = struct.unpack("<BBHBBBB", data)
+            return {"message": "BMS_Health", "alive_counter": alive,
+                    "status_checksum": checksum, "tx_count": tx, "bus_off": bool(bus_off)}
         raise ValueError(f"unsupported BMS CAN identifier: 0x{frame.arbitration_id:X}")
 
     def parse_all(self, frames: Iterable[CANFrame]) -> list[dict]:
         return [self.parse(frame) for frame in frames]
+
+    def to_dbc(self) -> str:
+        """Emit a Vector ``.dbc`` describing the BMS broadcast message/signal set."""
+        lines = ['VERSION ""', "", "BS_:", "", "BU_: BMS", ""]
+
+        def message(mid, name, signals):
+            return [f"BO_ {mid} {name}: 8 BMS"] + [f" SG_ {s}" for s in signals] + [""]
+
+        lines += message(self.STATUS_ID, "BMS_Status", [
+            'pack_voltage_V : 0|16@1+ (0.01,0) [0|655.35] "V" Vector__XXX',
+            'pack_current_A : 16|16@1- (0.1,0) [-3276.8|3276.7] "A" Vector__XXX',
+            'soc_pct : 32|16@1+ (0.1,0) [0|100] "%" Vector__XXX',
+            'state_code : 48|8@1+ (1,0) [0|255] "" Vector__XXX',
+            'fault_code : 56|8@1+ (1,0) [0|255] "" Vector__XXX',
+        ])
+        lines += message(self.CELL_EXTREMA_ID, "BMS_CellExtrema", [
+            'cell_voltage_min_V : 0|16@1+ (0.001,0) [0|65.535] "V" Vector__XXX',
+            'cell_voltage_max_V : 16|16@1+ (0.001,0) [0|65.535] "V" Vector__XXX',
+            'soc_min_pct : 32|8@1+ (0.5,0) [0|100] "%" Vector__XXX',
+            'soc_max_pct : 40|8@1+ (0.5,0) [0|100] "%" Vector__XXX',
+            'series_groups : 48|16@1+ (1,0) [0|65535] "" Vector__XXX',
+        ])
+        lines += message(self.THERMAL_ID, "BMS_Thermal", [
+            'temperature_min_C : 0|16@1- (0.1,0) [-3276.8|3276.7] "degC" Vector__XXX',
+            'temperature_max_C : 16|16@1- (0.1,0) [-3276.8|3276.7] "degC" Vector__XXX',
+            'temperature_spread_C : 32|16@1- (0.1,0) [0|3276.7] "degC" Vector__XXX',
+            'cooling_duty_pct : 48|8@1+ (1,0) [0|100] "%" Vector__XXX',
+        ])
+        for horizon, mid in sorted(self.SOP_IDS.items()):
+            lines += message(mid, f"BMS_SOP_{int(horizon)}s", [
+                'traction_power_W : 0|16@1+ (1,0) [0|65535] "W" Vector__XXX',
+                'regen_power_W : 16|16@1+ (1,0) [0|65535] "W" Vector__XXX',
+                'traction_current_A : 32|16@1+ (0.1,0) [0|6553.5] "A" Vector__XXX',
+                'regen_current_A : 48|16@1+ (0.1,0) [0|6553.5] "A" Vector__XXX',
+            ])
+        lines += message(self.HEALTH_ID, "BMS_Health", [
+            'alive_counter : 0|8@1+ (1,0) [0|255] "" Vector__XXX',
+            'status_checksum : 8|8@1+ (1,0) [0|255] "" Vector__XXX',
+            'tx_count : 16|16@1+ (1,0) [0|65535] "" Vector__XXX',
+            'bus_off : 32|8@1+ (1,0) [0|1] "" Vector__XXX',
+        ])
+        return "\n".join(lines) + "\n"
+
+
+class CanBusMonitor:
+    """Receiver-side CAN health: message freshness/timeout, alive-counter
+    continuity, checksum validation, and bus-off (ISO 11898 error counting).
+    """
+
+    def __init__(self, timeout_s: float = 0.5, bus_off_threshold: int = 256):
+        self.timeout_s = float(timeout_s)
+        self.bus_off_threshold = int(bus_off_threshold)
+        self._last_seen: dict[int, float] = {}
+        self._last_alive: int | None = None
+        self.error_count = 0                    # transmit/receive error counter
+
+    def receive(self, frame: CANFrame, t: float) -> None:
+        self._last_seen[frame.arbitration_id] = float(t)
+
+    def is_stale(self, arbitration_id: int, now: float) -> bool:
+        last = self._last_seen.get(arbitration_id)
+        return last is None or (now - last) > self.timeout_s
+
+    def alive_ok(self, alive: int) -> bool:
+        ok = self._last_alive is None or (alive & 0xFF) == ((self._last_alive + 1) & 0xFF)
+        self._last_alive = alive & 0xFF
+        self._register(ok)
+        return ok
+
+    def checksum_ok(self, data: bytes, expected: int) -> bool:
+        ok = can_checksum(data) == (expected & 0xFF)
+        self._register(ok)
+        return ok
+
+    def _register(self, ok: bool) -> None:
+        # CAN error counter: +8 on error, -1 on success (ISO 11898).
+        self.error_count = (max(0, self.error_count - 1) if ok
+                            else min(512, self.error_count + 8))
+
+    @property
+    def bus_off(self) -> bool:
+        return self.error_count >= self.bus_off_threshold
+
+    def recover(self) -> None:
+        """Reset after a bus-off recovery sequence."""
+        self.error_count = 0
+        self._last_alive = None

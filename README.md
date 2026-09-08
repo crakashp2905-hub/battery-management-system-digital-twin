@@ -8,16 +8,16 @@ diagnostics, an EV range predictor, and a plain-language interpretability layer 
 reproducible, fully-tested framework where every module is independently usable.
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.15.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-0.16.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
   <img alt="coverage" src="https://img.shields.io/badge/coverage-90%25-brightgreen">
-  <img alt="tests" src="https://img.shields.io/badge/tests-248%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-266%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 248/248 unit tests pass • 27 library modules • 7 chemistries • ruff-clean •
+> **Status.** ✅ 266/266 unit tests pass • 27 library modules • 7 chemistries • ruff-clean •
 > CI on Python 3.10–3.13 • Streamlit dashboard + EV range predictor + executed demo notebook.
 
 ---
@@ -83,7 +83,7 @@ reproducible, fully-tested framework where every module is independently usable.
 - **Data-calibrated** — fit ECM parameters from HPPC/pulse or drive data (`fit_from_pulse`),
   learn per-cell parameter distributions instead of fixed scatter (`fit_cell_distribution`), and
   report accuracy bucketed by C-rate/temperature — kept separate for **synthetic vs real** data.
-- **Reproducible & tested** — every randomness source is seeded; 248 unit tests; pip-installable
+- **Reproducible & tested** — every randomness source is seeded; 266 unit tests; pip-installable
   with GitHub Actions CI (ruff-blocking + 90% coverage gate).
 
 ---
@@ -126,10 +126,10 @@ battery-management-system-digital-twin/
 │   ├── fmea.py                # FMEA / RPN table + RUL estimator (capacity & resistance fade)
 │   ├── charging.py            # AC/DC, fast/slow charging physics + plating limit
 │   ├── aging.py               # Dynamic capacity fade + resistance growth; SoH feedback to pack
-│   ├── control.py             # Supervisor state machine + precharge + SoH-aware control
+│   ├── control.py             # Supervisor FSM + precharge (RC DC-link plant) + SoH-aware control
 │   ├── passport.py            # Battery passport — lifetime EFC / DWC / RTE / throughput
 │   ├── sop.py                 # State of Power — multi-horizon traction/regen limits
-│   ├── can.py                 # Classic CAN 2.0B telemetry (encode / decode)
+│   ├── can.py                 # CAN 2.0B telemetry + DBC export, health frame, bus monitor
 │   ├── dva.py                 # Differential & incremental capacity analysis (dV/dQ, dQ/dV)
 │   ├── diagnostics.py         # EIS (Nyquist) simulation + C-rate capability map
 │   ├── range_predictor.py     # Physics-based EV range predictor (weather/traffic/road coupling)
@@ -141,7 +141,8 @@ battery-management-system-digital-twin/
 ├── app/streamlit_app.py       # Live multi-tab dashboard + range predictor
 ├── notebooks/                 # Executed end-to-end demo
 ├── scripts/build_notebook.py  # Reproducible notebook generator
-├── tests/test_bms.py          # 248 unit tests
+├── bms.dbc                    # Shipped Vector DBC (cantools-validated, matches the encoder)
+├── tests/test_bms.py          # 266 unit tests
 ├── figures/                   # 12 PNGs produced by the notebook
 ├── docs/architecture.md       # Layered-design notes & invariants
 ├── pyproject.toml • CHANGELOG.md • CONTRIBUTING.md • requirements.txt • LICENSE (MIT)
@@ -167,10 +168,10 @@ battery-management-system-digital-twin/
 | FMEA with S/O/D/RPN + RUL | `bms/fmea.py` |
 | **Charging-method physics (AC/DC, fast/slow) + plating** | `bms/charging.py` |
 | **Dynamic aging — capacity fade + resistance growth** | `bms/aging.py` |
-| Supervisor + precharge + **SoH-aware control** | `bms/control.py` |
+| Supervisor + **RC pre-charge plant (inrush/energy)** + **SoH-aware control** | `bms/control.py` |
 | Lifetime accounting (passport) | `bms/passport.py` |
 | State of Power (multi-horizon limits) | `bms/sop.py` |
-| CAN 2.0B telemetry | `bms/can.py` |
+| **CAN 2.0B telemetry + shipped `.dbc`, health frame & bus monitor** | `bms/can.py`, `bms.dbc` |
 | DVA / ICA, EIS, C-rate map | `bms/dva.py`, `bms/diagnostics.py` |
 | Physics-based EV range prediction | `bms/range_predictor.py` |
 | **Interpretability — explanations (opt. LLM), importances, fusion** | `bms/interpret.py` |
@@ -313,7 +314,7 @@ Diagnostics, Fault Analysis) and **🚗 Range Predictor**.
 ## Testing
 
 ```bash
-pytest -q                                  # 248 tests, ~30 s
+pytest -q                                  # 266 tests, ~30 s
 pytest --cov=bms --cov-fail-under=85       # coverage gate (CI enforces ≥ 85%; currently 90%)
 ruff check .                               # lint — blocking in CI
 ```
