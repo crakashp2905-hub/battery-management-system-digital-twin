@@ -184,6 +184,7 @@ CHEMISTRY_PROPS: dict[str, dict] = {
     "nmc": {
         "ocv_table": _NMC_SOC_OCV,
         "hysteresis_v": 0.008,
+        "entropic_coeff_V_per_K": -1.5e-4,
         "arrhenius_K": 4000.0,
         "temp_coeff_V_per_K": -5e-4,
         "v_min": 3.0,
@@ -202,6 +203,7 @@ CHEMISTRY_PROPS: dict[str, dict] = {
     "lfp": {
         "ocv_table": _LFP_SOC_OCV,
         "hysteresis_v": 0.020,
+        "entropic_coeff_V_per_K": -0.4e-4,
         "arrhenius_K": 3500.0,
         "temp_coeff_V_per_K": -3e-4,
         "v_min": 2.5,
@@ -220,6 +222,7 @@ CHEMISTRY_PROPS: dict[str, dict] = {
     "lmfp": {
         "ocv_table": _LMFP_SOC_OCV,
         "hysteresis_v": 0.015,
+        "entropic_coeff_V_per_K": -0.6e-4,
         "arrhenius_K": 3700.0,          # between LFP (3500) and NMC (4000)
         "temp_coeff_V_per_K": -4e-4,
         "v_min": 2.8,
@@ -238,6 +241,7 @@ CHEMISTRY_PROPS: dict[str, dict] = {
     "lto": {
         "ocv_table": _LTO_SOC_OCV,
         "hysteresis_v": 0.005,
+        "entropic_coeff_V_per_K": -1.0e-4,
         "arrhenius_K": 3000.0,          # least temperature-sensitive anode
         "temp_coeff_V_per_K": -2e-4,    # very low OCV temp sensitivity
         "v_min": 1.5,
@@ -256,6 +260,7 @@ CHEMISTRY_PROPS: dict[str, dict] = {
     "nca": {
         "ocv_table": _NCA_SOC_OCV,
         "hysteresis_v": 0.008,
+        "entropic_coeff_V_per_K": -1.5e-4,
         "arrhenius_K": 4500.0,          # most temperature-sensitive cathode
         "temp_coeff_V_per_K": -5e-4,
         "v_min": 3.0,
@@ -274,6 +279,7 @@ CHEMISTRY_PROPS: dict[str, dict] = {
     "lmo": {
         "ocv_table": _LMO_SOC_OCV,
         "hysteresis_v": 0.010,
+        "entropic_coeff_V_per_K": -1.2e-4,
         "arrhenius_K": 3800.0,
         "temp_coeff_V_per_K": -4.5e-4,
         "v_min": 3.0,
@@ -292,6 +298,7 @@ CHEMISTRY_PROPS: dict[str, dict] = {
     "ssb": {
         "ocv_table": _SSB_SOC_OCV,
         "hysteresis_v": 0.005,
+        "entropic_coeff_V_per_K": -1.0e-4,
         # Solid electrolyte ionic conductivity drops steeply below 0 °C.
         # Arrhenius_K ≈ 5500 K — highest of all chemistries.
         "arrhenius_K": 5500.0,

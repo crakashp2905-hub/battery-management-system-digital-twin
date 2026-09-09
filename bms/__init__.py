@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.19.0"
+__version__ = "0.20.0"
 
 from .agent import (
     ActionGate,
@@ -134,6 +134,7 @@ from .mechanics import (
     coulombic_efficiency,
 )
 from .ocv_soc import OCVSOC
+from .online_id import RLSIdentifier
 from .pack import BatteryPack, PackConfig
 from .passport import BatteryPassport
 from .range_predictor import (
@@ -169,7 +170,7 @@ __all__ = [
     "Balancer", "PassiveBalancer", "SwitchedCapacitorBalancer",
     "InductorBalancer", "compare_balancers",
     "CoulombCounter", "EKFEstimator", "UKFEstimator", "LSTMEstimator",
-    "BiasEKFEstimator", "benchmark_estimators",
+    "BiasEKFEstimator", "benchmark_estimators", "RLSIdentifier",
     "FaultMode", "FaultSpec", "FaultInjector", "HybridFaultDetector",
     "RollingFeatureBuffer", "extract_features",
     "build_fmea_table", "estimate_rul", "estimate_rul_with_resistance",

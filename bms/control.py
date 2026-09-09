@@ -238,6 +238,10 @@ class SupervisorConfig:
     # filter's SoH drives the control derating automatically.
     estimate_online: bool = False
     online_feeds_soh: bool = True
+    # Add the reversible (entropic) heat term −I·T·(dU/dT) to the thermal model,
+    # using the chemistry's entropic coefficient.  Off by default (adds a small,
+    # sign-flipping heat term); on = higher thermal fidelity.
+    entropic_heat: bool = False
 
 
 @dataclass
@@ -294,6 +298,7 @@ class BMSSupervisor:
         from .chemistry import get_chemistry_props
         _props = get_chemistry_props(self.pack.cfg.chemistry)
         self._v_min_cell = float(_props["v_min"])
+        self._entropic_coeff = float(_props.get("entropic_coeff_V_per_K", 0.0))
         self.passport = BatteryPassport(
             nominal_capacity_Ah=float(np.mean(self.pack.capacities_Ah)),
             nominal_voltage_V=_props["nominal_voltage_V"] * self.pack.n_cells,
@@ -500,8 +505,11 @@ class BMSSupervisor:
             for i, g in enumerate(self.pack.groups)
         ])
         R0 = np.array([g.params.R0 for g in self.pack.groups])
+        entropic = (self._entropic_coeff if self.config.entropic_heat else None)
         heat = ThermalModel.heat_generation(currents_per_group, R0,
-                                            pack_step["v_cells"], ocv)
+                                            pack_step["v_cells"], ocv,
+                                            entropic_coeff_V_per_K=entropic,
+                                            temperature_C=self.thermal.T)
 
         if self.state not in (BMSState.FAULT, BMSState.SHUTDOWN):
             cooling_duty = self._cooling.step(

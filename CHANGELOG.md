@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.20.0] - 2026-09-09
+
+Estimation-frontier wave 2 of the "add everything" program.
+
+### Added
+- **`RLSIdentifier` — online ECM parameter identification** (`bms/online_id.py`).
+  Recursive least squares tracks the ohmic resistance `R0` live from the terminal
+  voltage's response to current steps (`ΔV ≈ −R0·ΔI`), so the twin keeps its ECM
+  current under temperature/age drift without an offline re-fit — lighter than a
+  dual-EKF. Recovers a known R0 to a few mΩ, tracks a change in R0, and coasts
+  (does not wander) when the current is flat.
+- **Entropic (reversible) heat** in the thermal model. Each chemistry gains an
+  `entropic_coeff_V_per_K` (dU/dT); `ThermalModel.heat_generation` adds the
+  reversible term `Q_rev = −I·T·(dU/dT)`, which — unlike I²R — **flips sign**
+  between charge and discharge. Opt-in via `SupervisorConfig.entropic_heat`
+  (off by default → no change to existing thermal behaviour).
+
+### Note
+Dynamic (Plett) hysteresis, also slated for wave 2, is deferred to a later wave
+in favour of these net-new capabilities; the static per-chemistry hysteresis from
+0.19.0 already delivers the flat-OCV accuracy gain.
+
+- 7 tests (now **283**).
+
 ## [0.19.0] - 2026-09-09
 
 Estimation-fidelity wave 1 of the "add everything" program — both items fix a

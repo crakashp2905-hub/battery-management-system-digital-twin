@@ -123,25 +123,38 @@ class ThermalModel:
 
     @staticmethod
     def heat_generation(currents: np.ndarray, R0: np.ndarray,
-                        v_terminal: np.ndarray, ocv: np.ndarray) -> np.ndarray:
-        """Per-cell irreversible heat production [W].
+                        v_terminal: np.ndarray, ocv: np.ndarray,
+                        entropic_coeff_V_per_K: np.ndarray | float | None = None,
+                        temperature_C: np.ndarray | float = 25.0) -> np.ndarray:
+        """Per-cell heat production [W]: irreversible, plus optional reversible.
 
-        The total irreversible dissipation of an RC ECM cell is current times
-        total overpotential::
+        The **irreversible** dissipation of an RC ECM cell is current times total
+        overpotential::
 
-            Q = |I · (OCV - V_terminal)|
-              = I²·R0 + I·(V_RC1 + V_RC2)     since  OCV - V_t = V_RC1+V_RC2+R0·I
+            Q_irr = |I · (OCV - V_terminal)|
+                  = I²·R0 + I·(V_RC1 + V_RC2)   since  OCV - V_t = V_RC1+V_RC2+R0·I
 
         This single expression is correct for **both** charge and discharge and
         already contains the ohmic I²R0 term, so it must not be added again.
-        (The previous ``I²R0 + I·max(OCV-V_t, 0)`` double-counted R0 on
-        discharge and dropped all polarisation heat on charge.)  ``R0`` is
-        retained in the signature for backward compatibility and used as a
-        floor so heat never falls below the always-dissipative ohmic loss.
+        ``R0`` is used as a floor so heat never falls below the always-dissipative
+        ohmic loss.
+
+        When ``entropic_coeff_V_per_K`` (dU/dT, the cell's entropic coefficient)
+        is given, the **reversible** entropic heat is added::
+
+            Q_rev = -I · T · (dU/dT)            (T in kelvin, I>0 = discharge)
+
+        Unlike the irreversible term this **flips sign** between charge and
+        discharge, so it can be locally endothermic — physically the reversible
+        heat that a pure I²R model omits.
         """
         currents = np.asarray(currents, float)
         q = np.abs(currents * (ocv - v_terminal))
-        return np.maximum(q, currents ** 2 * np.asarray(R0, float))
+        q = np.maximum(q, currents ** 2 * np.asarray(R0, float))
+        if entropic_coeff_V_per_K is not None:
+            T_K = np.asarray(temperature_C, float) + 273.15
+            q = q - currents * T_K * np.asarray(entropic_coeff_V_per_K, float)
+        return q
 
 
 # ----------------------------------------------------------------------

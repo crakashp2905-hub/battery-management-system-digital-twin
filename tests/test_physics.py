@@ -179,6 +179,48 @@ class TestThermal:
         assert abs(y - 10.0) < 2.0 or abs(pid.prev_err) < 2.0
 
 
+class TestEntropicHeat:
+    def test_reversible_term_flips_sign_with_current(self):
+        import numpy as np
+        R0 = np.array([0.025]); ocv = np.array([3.7])
+        coeff = -1.5e-4
+        # Same |I|, opposite direction, symmetric terminal voltage.
+        q_dis = bms.ThermalModel.heat_generation(
+            np.array([2.0]), R0, np.array([3.65]), ocv,
+            entropic_coeff_V_per_K=coeff, temperature_C=25.0)[0]
+        q_chg = bms.ThermalModel.heat_generation(
+            np.array([-2.0]), R0, np.array([3.75]), ocv,
+            entropic_coeff_V_per_K=coeff, temperature_C=25.0)[0]
+        q_irr = bms.ThermalModel.heat_generation(
+            np.array([2.0]), R0, np.array([3.65]), ocv)[0]
+        # Reversible heat is exothermic on discharge (coeff<0) and endothermic on
+        # charge, so discharge > irreversible-only > charge.
+        assert q_dis > q_irr > q_chg
+
+    def test_zero_coefficient_matches_irreversible(self):
+        import numpy as np
+        args = (np.array([1.5]), np.array([0.02]), np.array([3.6]), np.array([3.7]))
+        base = bms.ThermalModel.heat_generation(*args)
+        with_zero = bms.ThermalModel.heat_generation(
+            *args, entropic_coeff_V_per_K=0.0, temperature_C=25.0)
+        assert np.allclose(base, with_zero)
+
+    def test_supervisor_entropic_flag_is_opt_in(self):
+        # Off by default → identical to no entropic term; on → different heat.
+        import numpy as np
+        np.random.seed(0)
+        def _run(entropic):
+            pack = bms.BatteryPack(bms.PackConfig(n_cells=3, seed=5))
+            cfg = bms.SupervisorConfig(entropic_heat=entropic)
+            sup = bms.BMSSupervisor(pack, bms.ThermalModel(n_cells=3),
+                                    bms.HybridFaultDetector(), config=cfg)
+            T = None
+            for _ in range(120):
+                T = sup.step(2.0, 1.0)["T_cells"]
+            return float(np.mean(T))
+        assert _run(True) != _run(False)
+
+
 
 class TestSelfDischarge:
     def test_self_discharge_drains_soc_at_rest(self):
