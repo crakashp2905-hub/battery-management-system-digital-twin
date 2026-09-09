@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.23.0"
+__version__ = "0.24.0"
 
 from .agent import (
     ActionGate,
@@ -119,7 +119,21 @@ from .faults import (
     RollingFeatureBuffer,
     extract_features,
 )
-from .fmea import build_fmea_table, estimate_rul, estimate_rul_with_resistance
+from .fmea import (
+    FMEA_TEST_LINKS,
+    build_fmea_table,
+    estimate_rul,
+    estimate_rul_with_resistance,
+    fmea_traceability,
+)
+from .fta import (
+    Event,
+    basic_events,
+    minimal_cut_sets,
+    probability,
+    thermal_runaway_tree,
+    to_mermaid,
+)
 from .hv_safety import ContactorWeldDetector, InsulationMonitor
 from .interpret import (
     FEATURE_NAMES,
@@ -180,6 +194,9 @@ __all__ = [
     "FaultMode", "FaultSpec", "FaultInjector", "HybridFaultDetector",
     "RollingFeatureBuffer", "extract_features",
     "build_fmea_table", "estimate_rul", "estimate_rul_with_resistance",
+    "fmea_traceability", "FMEA_TEST_LINKS",
+    "Event", "probability", "minimal_cut_sets", "basic_events",
+    "to_mermaid", "thermal_runaway_tree",
     "BMSSupervisor", "BMSState", "SupervisorConfig", "ContactorState",
     "PrechargeContactorSequencer", "PrechargeCircuit",
     "SafetyConfig", "state_of_safety",

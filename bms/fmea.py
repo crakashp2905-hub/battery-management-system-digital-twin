@@ -60,6 +60,54 @@ def build_fmea_table(rows: list[tuple] | None = None) -> pd.DataFrame:
 
 
 # ----------------------------------------------------------------------
+# FMEA → test traceability
+# ----------------------------------------------------------------------
+# Each failure mode is linked to substrings that identify the test(s) proving
+# its control is exercised.  A high-RPN mode with no matching test is a
+# traceability gap — see `fmea_traceability` and `scripts/traceability.py`.
+FMEA_TEST_LINKS: dict[str, list[str]] = {
+    "Overcharge": ["overcharge", "test_faults"],
+    "Over-discharge": ["undervoltage", "derate", "test_faults"],
+    "External short circuit": ["short_circuit", "test_faults"],
+    "Internal short circuit": ["internal_short", "TestMechan"],
+    "Thermal runaway": ["thermal_runaway", "TestRunawayPropagation", "TestEntropicHeat"],
+    "Cell imbalance": ["imbalance", "balanc", "test_balancing"],
+    "Voltage sensor failure": ["TestSensorFDI", "dropout", "virtual"],
+    "Voltage sensor bias": ["bias", "TestBiasEKF", "sensor_bias"],
+    "Temperature sensor failure": ["TestSensorFDI", "temperature"],
+    "Coolant pump failure": ["cooling", "TestThermal", "duty"],
+    "BMS firmware fault": ["TestState", "supervisor", "test_control"],
+    "Capacity fade (ageing)": ["rul", "soh", "aging", "TestOnlineEstimation"],
+}
+
+
+def fmea_traceability(collected_test_ids: list[str] | None = None,
+                      rpn_threshold: int = 100) -> pd.DataFrame:
+    """Cross-reference the FMEA against the test suite.
+
+    Adds ``linked_tests`` (the matching test node ids from
+    ``collected_test_ids`` when given, else the link substrings), ``covered``
+    (has ≥1 test), and ``gap`` (``covered is False`` for an ``RPN ≥
+    rpn_threshold`` mode — a mode too risky to leave untested).
+    """
+    df = build_fmea_table()
+    linked, covered = [], []
+    for mode in df["failure_mode"]:
+        keys = FMEA_TEST_LINKS.get(mode, [])
+        if collected_test_ids is not None:
+            hits = [t for t in collected_test_ids
+                    if any(k.lower() in t.lower() for k in keys)]
+        else:
+            hits = list(keys)
+        linked.append(hits)
+        covered.append(len(hits) > 0)
+    df["linked_tests"] = linked
+    df["covered"] = covered
+    df["gap"] = (~df["covered"]) & (df["RPN"] >= rpn_threshold)
+    return df
+
+
+# ----------------------------------------------------------------------
 # RUL — square-root-of-time capacity-fade model
 # ----------------------------------------------------------------------
 def estimate_rul(cycle_counts: np.ndarray,

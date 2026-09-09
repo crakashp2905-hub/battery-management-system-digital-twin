@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.24.0] - 2026-09-09
+
+Dependability wave 4b — the safety case: FMEA → test traceability + Fault Tree.
+
+### Added
+- **Fault Tree Analysis** (`bms/fta.py`) — a tiny FTA engine (`Event`, AND/OR
+  gates, `probability`, `minimal_cut_sets`, `basic_events`, `to_mermaid`) and a
+  reference `thermal_runaway_tree()` whose basic events each name the twin
+  detector that watches them (`faults` / `mechanics` / `sensor_fdi` / `hv_safety`
+  / `propagation`). Internal short is a single-event cut; overcharge and
+  overtemperature are AND gates.
+- **FMEA → test traceability** — `FMEA_TEST_LINKS` maps each failure mode to its
+  covering tests; `fmea_traceability()` adds `linked_tests` / `covered` / `gap`
+  columns, and `scripts/traceability.py` prints the matrix and **exits non-zero
+  if any RPN ≥ 100 mode has no covering test** (a CI-able safety gate).
+- **`docs/safety_case.md`** ties FMEA + FTA + traceability into one argument.
+- 8 tests (now **315**).
+
 ## [0.23.0] - 2026-09-09
 
 Dependability wave 4a — harden the model-agnostic adapters.
