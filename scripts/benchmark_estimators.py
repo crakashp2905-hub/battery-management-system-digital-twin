@@ -122,9 +122,78 @@ def run_temperature(markdown: bool = False,
                 print(f"  {T:>5.0f}   {a:10.3f}   {n:10.3f}   {n - a:+10.3f}")
 
 
+def run_hysteresis(markdown: bool = False, filt: str = "ekf", n_seeds: int = 5) -> None:
+    """Value of modelling OCV hysteresis, per chemistry (mean over seeds).
+
+    The plant carries each chemistry's characteristic hysteresis; we score the
+    same traces with the filter's OCV hysteresis-**aware** vs **naive** (forced
+    to 0).  Flat-OCV chemistries (LFP/LMFP) gain the most, since there the
+    hysteresis dominates the sparse OCV slope.
+    """
+    if markdown:
+        print(f"\n### Hysteresis-aware vs naive (`{filt}`, SoC RMSE %, "
+              f"mean of {n_seeds} seeds)\n")
+        print("| chemistry | aware | naive | gain |")
+        print("|---|---|---|---|")
+    else:
+        print(f"\n=== Hysteresis aware vs naive ({filt}, mean of {n_seeds} seeds) ===")
+        print("  chem    aware%   naive%    gain%")
+    for chem in CHEMISTRIES:
+        a, n = [], []
+        for seed in range(n_seeds):
+            data = bms.synthetic_drivecycle(chem, duration_s=1800, seed=seed)
+            a.append(bms.estimator_leaderboard(
+                data, [filt], hysteresis_aware=True).loc[filt, "rmse"] * 100)
+            n.append(bms.estimator_leaderboard(
+                data, [filt], hysteresis_aware=False).loc[filt, "rmse"] * 100)
+        am, nm = float(np.mean(a)), float(np.mean(n))
+        if markdown:
+            print(f"| {chem} | {am:.2f} | {nm:.2f} | **{nm - am:+.2f}** |")
+        else:
+            print(f"  {chem:5s}   {am:6.2f}   {nm:6.2f}   {nm - am:+6.2f}")
+
+
+def run_bias(markdown: bool = False, chemistries=("nmc", "lfp"),
+             biases=(0.15, -0.10)) -> None:
+    """The `bias_ekf` recovers a current-sensor offset online (vs coulomb/ekf)."""
+    from bms.ecm import ECMParameters
+    from bms.ocv_soc import OCVSOC
+
+    if markdown:
+        print("\n### Current-sensor bias: SoC RMSE % and recovered bias\n")
+        print("| chem · bias | coulomb | ekf | bias_ekf | recovered |")
+        print("|---|---|---|---|---|")
+    for chem in chemistries:
+        d = bms.get_chemistry_props(chem)["default_ecm"]
+        for bias in biases:
+            data = bms.synthetic_drivecycle(chem, duration_s=1800, seed=1,
+                                            current_bias_A=bias)
+            board = bms.estimator_leaderboard(data, ["coulomb", "ekf", "bias_ekf"])
+            est = bms.BiasEKFEstimator(
+                params=ECMParameters(R0=d["R0"], R1=d["R1"], C1=d["C1"],
+                                     R2=d["R2"], C2=d["C2"],
+                                     Q_nom_Ah=data.capacity_Ah, chemistry=chem),
+                ocv_curve=OCVSOC.from_chemistry(chem))
+            est.reset(float(data.soc_true[0]))
+            est.run(data.current_A, data.voltage_V, data.dt)
+            cells = (board.loc["coulomb", "rmse"] * 100, board.loc["ekf", "rmse"] * 100,
+                     board.loc["bias_ekf", "rmse"] * 100)
+            if markdown:
+                print(f"| {chem} · {bias:+.2f} A | {cells[0]:.2f} | {cells[1]:.2f} "
+                      f"| **{cells[2]:.2f}** | {est.current_bias_A:+.3f} A |")
+            else:
+                print(f"{chem} bias {bias:+.2f}A -> coulomb {cells[0]:.2f}%  "
+                      f"ekf {cells[1]:.2f}%  bias_ekf {cells[2]:.2f}%  "
+                      f"(recovered {est.current_bias_A:+.3f} A)")
+
+
 if __name__ == "__main__":
     md = "--markdown" in sys.argv
     if "--temperature" in sys.argv:
         run_temperature(markdown=md)
+    elif "--hysteresis" in sys.argv:
+        run_hysteresis(markdown=md)
+    elif "--bias" in sys.argv:
+        run_bias(markdown=md)
     else:
         run(markdown=md)

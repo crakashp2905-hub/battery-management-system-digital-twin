@@ -211,6 +211,15 @@ def _make_joint_ekf(*, params=None, ocv_curve=None, capacity_Ah: float = 2.3, **
                        ocv_curve=ocv_curve or OCVSOC(), q_nominal_Ah=capacity_Ah)
 
 
+@register_soc_estimator("bias_ekf")
+def _make_bias_ekf(*, params=None, ocv_curve=None, capacity_Ah: float = 2.3, **_):
+    from .ecm import ECMParameters
+    from .ocv_soc import OCVSOC
+    from .soc_estimators import BiasEKFEstimator
+    return BiasEKFEstimator(params=params or ECMParameters(Q_nom_Ah=capacity_Ah),
+                            ocv_curve=ocv_curve or OCVSOC())
+
+
 # ======================================================================
 # Framework adapters — plug a *trained* model in as a SoC estimator
 # ======================================================================

@@ -184,7 +184,8 @@ def load_drivecycle_csv(path, chemistry: str = "nmc", capacity_Ah: float | None 
 
 # ======================================================================
 def estimator_leaderboard(data: DriveCycleData, estimators: list[str] | None = None,
-                          temperature_aware: bool = True):
+                          temperature_aware: bool = True,
+                          hysteresis_aware: bool = True):
     """Run each estimator on *data* and rank them by SoC RMSE.
 
     Returns a DataFrame indexed by estimator with ``rmse``, ``mae``, ``max_err``,
@@ -196,6 +197,11 @@ def estimator_leaderboard(data: DriveCycleData, estimators: list[str] | None = N
     hot trace the filter uses the correct Arrhenius-shifted ECM and OCV.  Set it
     ``False`` to score temperature-*naive* filters (assuming 25 °C) against the
     same trace — the two runs quantify the value of a temperature sensor.
+
+    ``hysteresis_aware`` (default) gives the estimator's OCV the chemistry's
+    characteristic hysteresis; ``False`` forces a hysteresis-free OCV (matters
+    on flat-OCV chemistries like LFP, whose hysteresis dominates the sparse OCV
+    slope) — the two runs quantify the value of modelling hysteresis.
     """
     import inspect
 
@@ -210,7 +216,8 @@ def estimator_leaderboard(data: DriveCycleData, estimators: list[str] | None = N
     d = get_chemistry_props(data.chemistry)["default_ecm"]
     params = ECMParameters(R0=d["R0"], R1=d["R1"], C1=d["C1"], R2=d["R2"], C2=d["C2"],
                            Q_nom_Ah=data.capacity_Ah, chemistry=data.chemistry)
-    ocv = OCVSOC.from_chemistry(data.chemistry)
+    ocv = OCVSOC.from_chemistry(data.chemistry,
+                                hysteresis_v=None if hysteresis_aware else 0.0)
 
     rows = []
     for name in names:

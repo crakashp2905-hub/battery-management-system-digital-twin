@@ -75,10 +75,18 @@ class OCVSOC:
 
     # ------------------------------------------------------------------
     @classmethod
-    def from_chemistry(cls, chemistry: str, hysteresis_v: float = 0.0) -> "OCVSOC":
-        """Build an OCVSOC configured for *chemistry* (``"nmc"`` or ``"lfp"``)."""
+    def from_chemistry(cls, chemistry: str, hysteresis_v: float | None = None) -> "OCVSOC":
+        """Build an OCVSOC configured for *chemistry* (``"nmc"``, ``"lfp"``, …).
+
+        ``hysteresis_v`` defaults to the chemistry's characteristic OCV
+        hysteresis (``props["hysteresis_v"]`` — largest for flat-OCV LFP/LMFP),
+        so a curve built by chemistry is hysteresis-aware by default.  Pass
+        ``0.0`` to force a hysteresis-free curve.
+        """
         from .chemistry import get_chemistry_props
         props = get_chemistry_props(chemistry)
+        if hysteresis_v is None:
+            hysteresis_v = float(props.get("hysteresis_v", 0.0))
         return cls(
             table=props["ocv_table"],
             hysteresis_v=hysteresis_v,

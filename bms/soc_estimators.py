@@ -158,6 +158,104 @@ class EKFEstimator:
 
 
 # ======================================================================
+# 2b. Bias-augmented EKF — recovers a current-sensor offset online
+# ======================================================================
+@dataclass
+class BiasEKFEstimator:
+    """EKF over state x = [SOC, V_RC1, V_RC2, b], where ``b`` is the current-sensor
+    bias [A].  A plain Coulomb counter integrates the *measured* current and so
+    drifts by ``b·t/Q``; this filter instead treats the true current as
+    ``i_true = i_meas - b`` and estimates ``b`` as a slow random-walk parameter.
+
+    ``b`` is observable whenever the OCV has slope (a biased current predicts a
+    voltage the measurement contradicts), so the filter both keeps SOC accurate
+    under a biased sensor **and** hands back the recovered offset for
+    recalibration — the online answer to the sensor-bias failure the benchmark
+    highlights.
+    """
+
+    params: ECMParameters
+    ocv_curve: OCVSOC = field(default_factory=OCVSOC)
+    R_cov: float = 1e-4                     # voltage measurement variance (V²)
+    bias_rw_std_A: float = 1e-4            # per-step random-walk std of the bias
+    initial_bias_std_A: float = 0.5       # prior 1-σ on the unknown offset
+    x: np.ndarray = field(init=False)
+    P: np.ndarray = field(init=False)
+    name: str = "bias_ekf"
+
+    def __post_init__(self) -> None:
+        self.reset(1.0)
+        self.Q_cov = np.diag([1e-7, 1e-6, 1e-6, self.bias_rw_std_A ** 2])
+
+    def reset(self, soc0: float = 1.0, bias0_A: float = 0.0) -> None:
+        self.x = np.array([float(np.clip(soc0, 0.0, 1.0)), 0.0, 0.0, float(bias0_A)])
+        self.P = np.diag([1e-2, 1e-3, 1e-3, self.initial_bias_std_A ** 2])
+
+    @property
+    def soc(self) -> float:
+        return float(np.clip(self.x[0], 0.0, 1.0))
+
+    @property
+    def current_bias_A(self) -> float:
+        """Estimated current-sensor offset [A] (i_true = i_measured − bias)."""
+        return float(self.x[3])
+
+    @property
+    def soc_uncertainty_1sigma(self) -> float:
+        return float(np.sqrt(max(self.P[0, 0], 0.0)))
+
+    @property
+    def bias_uncertainty_1sigma(self) -> float:
+        return float(np.sqrt(max(self.P[3, 3], 0.0)))
+
+    def update(self, current: float, voltage: float, dt: float,
+               temperature_C: float = 25.0) -> float:
+        """One predict/update step.  ``current`` is the *measured* current."""
+        p = self.params.at_temperature(temperature_C)
+        a1 = float(np.exp(-dt / max(p.tau1, 1e-9)))
+        a2 = float(np.exp(-dt / max(p.tau2, 1e-9)))
+        soc, vrc1, vrc2, b = self.x
+        i_true = current - b                        # de-biased current
+
+        # ---- Predict ------------------------------------------------
+        x_pred = np.array([
+            soc - i_true * dt / (p.Q_nom_Ah * 3600.0),
+            a1 * vrc1 + (1.0 - a1) * p.R1 * i_true,
+            a2 * vrc2 + (1.0 - a2) * p.R2 * i_true,
+            b,                                       # bias: random walk
+        ])
+        F = np.array([
+            [1.0, 0.0, 0.0, dt / (p.Q_nom_Ah * 3600.0)],
+            [0.0, a1, 0.0, -(1.0 - a1) * p.R1],
+            [0.0, 0.0, a2, -(1.0 - a2) * p.R2],
+            [0.0, 0.0, 0.0, 1.0],
+        ])
+        P_pred = F @ self.P @ F.T + self.Q_cov
+
+        # ---- Update -------------------------------------------------
+        ocv = float(self.ocv_curve.ocv(x_pred[0], i_true, T_C=temperature_C))
+        h = ocv - x_pred[1] - x_pred[2] - p.R0 * (current - x_pred[3])
+        docv = float(self.ocv_curve.docv_dsoc(x_pred[0]))
+        H = np.array([[docv, -1.0, -1.0, p.R0]])     # ∂h/∂b = +R0
+        innovation = voltage - h
+        S = float((H @ P_pred @ H.T).item() + self.R_cov)
+        K = (P_pred @ H.T / S).flatten()
+        self.x = x_pred + K * innovation
+        self.P = (np.eye(4) - np.outer(K, H)) @ P_pred
+        return self.soc
+
+    def run(self, currents: np.ndarray, voltages: np.ndarray, dt: float,
+            temperatures: np.ndarray | None = None) -> np.ndarray:
+        n = len(currents)
+        T = np.full(n, 25.0) if temperatures is None else np.asarray(temperatures, float)
+        out = np.empty(n)
+        for k in range(n):
+            out[k] = self.update(float(currents[k]), float(voltages[k]), dt,
+                                 temperature_C=float(T[k]))
+        return out
+
+
+# ======================================================================
 # 3.  Unscented Kalman filter (filterpy)
 # ======================================================================
 class UKFEstimator:
