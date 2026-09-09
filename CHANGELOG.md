@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.23.0] - 2026-09-09
+
+Dependability wave 4a — harden the model-agnostic adapters.
+
+### Added
+- **`OODDetector` — out-of-distribution detection** for plugged-in ML models.
+  `OODDetector.fit(X)` learns the training feature distribution; at inference
+  `d² = (x−μ)ᵀ Σ⁻¹ (x−μ)` above a learnt (empirical-quantile) threshold flags an
+  input the model never saw. Wired into `SklearnSocEstimator` / `OnnxSocEstimator`
+  via `ood_detector=`; the estimate is still returned but `last_ood`/`n_ood` are
+  set — feed that flag to the `ActionGate` so an OOD reading cannot drive an
+  automated action.
+- **`ModelCard`** — provenance + feature contract for a plugged-in model
+  (`feature_names`/order, chemistry, training temp/SoC ranges, train/val RMSE,
+  version, created date, sha256). Attach via `card=`.
+- 5 tests (now **307**).
+
 ## [0.22.0] - 2026-09-09
 
 Safety-depth wave 3b — the flagship module-level safety capability.

@@ -229,18 +229,91 @@ def _default_features(voltage: float, current: float, dt: float,
     return [voltage, current, temperature_C, prev_soc]
 
 
+@dataclass
+class ModelCard:
+    """Provenance + validity metadata for a plugged-in ML SoC model.
+
+    Records the feature contract and the regime the model was trained on, so a
+    deployed model can be checked against how it was built.  ``feature_names``
+    also documents the **feature order** the model expects (the classic silent
+    bug is feeding ``[I, V, T]`` to a model trained on ``[V, I, T]``).
+    """
+
+    feature_names: list[str]
+    chemistry: str | None = None
+    model_version: str = "1.0"
+    training_temp_range_C: tuple[float, float] | None = None
+    training_soc_range: tuple[float, float] | None = None
+    train_rmse: float | None = None
+    val_rmse: float | None = None
+    created: str | None = None
+    sha256: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.created is None:
+            import datetime as _dt
+            self.created = _dt.date.today().isoformat()
+
+
+@dataclass
+class OODDetector:
+    """Out-of-distribution flag via Mahalanobis distance to the training set.
+
+    A model plugged in as an estimator silently extrapolates on inputs it never
+    saw.  This flags them: ``d² = (x−μ)ᵀ Σ⁻¹ (x−μ)`` exceeding a threshold learnt
+    from the training features (an empirical quantile — no Gaussian assumption).
+    """
+
+    mean: np.ndarray
+    inv_cov: np.ndarray
+    threshold: float
+
+    @classmethod
+    def fit(cls, X: np.ndarray, quantile: float = 0.99,
+            margin: float = 1.5, ridge: float = 1e-9) -> "OODDetector":
+        X = np.asarray(X, float)
+        mean = X.mean(axis=0)
+        cov = np.cov(X, rowvar=False)
+        cov = np.atleast_2d(cov) + ridge * np.eye(X.shape[1])
+        inv = np.linalg.pinv(cov)
+        d2 = np.einsum("ij,jk,ik->i", X - mean, inv, X - mean)
+        thr = float(np.quantile(d2, quantile) * margin)
+        return cls(mean=mean, inv_cov=inv, threshold=thr)
+
+    def mahalanobis_sq(self, x: np.ndarray) -> float:
+        d = np.asarray(x, float).ravel() - self.mean
+        return float(d @ self.inv_cov @ d)
+
+    def is_ood(self, x: np.ndarray) -> bool:
+        return self.mahalanobis_sq(x) > self.threshold
+
+
 class SklearnSocEstimator(FunctionSocEstimator):
     """Wrap a fitted scikit-learn regressor as a recursive SoC estimator.
 
     The model maps a per-step feature vector → SoC.  Default features are
     ``[voltage, current, temperature, prev_soc]``; pass ``feature_fn`` to change.
+
+    Optionally attach a :class:`ModelCard` (provenance/feature contract) and an
+    :class:`OODDetector`; when the detector flags an input the estimate is still
+    returned but ``last_ood`` is set and ``n_ood`` counts it — feed that flag to
+    the :class:`~bms.agent.ActionGate` so an out-of-distribution reading cannot
+    drive an automated action.
     """
 
-    def __init__(self, model, name: str = "sklearn", feature_fn=None):
+    def __init__(self, model, name: str = "sklearn", feature_fn=None,
+                 card: "ModelCard | None" = None, ood_detector: "OODDetector | None" = None):
         ff = feature_fn or _default_features
+        self.card = card
+        self.ood_detector = ood_detector
+        self.last_ood = False
+        self.n_ood = 0
 
         def _fn(v, i, dt, T, s):
             x = np.asarray(ff(v, i, dt, T, s), float).reshape(1, -1)
+            if self.ood_detector is not None:
+                self.last_ood = self.ood_detector.is_ood(x)
+                self.n_ood += int(self.last_ood)
             return float(np.ravel(model.predict(x))[0])
 
         super().__init__(_fn, name=name)
@@ -251,10 +324,12 @@ class OnnxSocEstimator(FunctionSocEstimator):
     """Wrap an ONNX model (path or ``onnxruntime`` session) as a SoC estimator.
 
     Truly framework-neutral: train in *any* framework, export to ``.onnx``, run
-    it here.  Requires ``onnxruntime`` (``pip install '.[onnx]'``).
+    it here.  Requires ``onnxruntime`` (``pip install '.[onnx]'``).  Accepts the
+    same optional ``card`` / ``ood_detector`` as :class:`SklearnSocEstimator`.
     """
 
-    def __init__(self, model, name: str = "onnx", input_name=None, feature_fn=None):
+    def __init__(self, model, name: str = "onnx", input_name=None, feature_fn=None,
+                 card: "ModelCard | None" = None, ood_detector: "OODDetector | None" = None):
         if hasattr(model, "run"):
             session = model
         else:
@@ -262,9 +337,16 @@ class OnnxSocEstimator(FunctionSocEstimator):
             session = ort.InferenceSession(str(model))
         inp = input_name or session.get_inputs()[0].name
         ff = feature_fn or _default_features
+        self.card = card
+        self.ood_detector = ood_detector
+        self.last_ood = False
+        self.n_ood = 0
 
         def _fn(v, i, dt, T, s):
             x = np.asarray(ff(v, i, dt, T, s), np.float32).reshape(1, -1)
+            if self.ood_detector is not None:
+                self.last_ood = self.ood_detector.is_ood(x)
+                self.n_ood += int(self.last_ood)
             return float(np.ravel(session.run(None, {inp: x})[0])[0])
 
         super().__init__(_fn, name=name)

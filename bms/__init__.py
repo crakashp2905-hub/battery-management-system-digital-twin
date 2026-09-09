@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.22.0"
+__version__ = "0.23.0"
 
 from .agent import (
     ActionGate,
@@ -99,7 +99,9 @@ from .ecm import ECMParameters, SecondOrderECM, fit_ecm_parameters
 from .estimation import (
     Estimate,
     FunctionSocEstimator,
+    ModelCard,
     OnnxSocEstimator,
+    OODDetector,
     RecursiveSocEstimator,
     SklearnSocEstimator,
     SocEstimator,
@@ -202,6 +204,7 @@ __all__ = [
     "soc_estimate", "make_soc_estimator", "available_soc_estimators",
     "register_soc_estimator",
     "SklearnSocEstimator", "OnnxSocEstimator", "model_from_file",
+    "ModelCard", "OODDetector",
     "Tool", "Finding", "DiagnosisReport", "DiagnosticAgent", "ProposedAction",
     "ActionGate", "redact_telemetry", "evaluation_scenarios", "OllamaLLM",
     "twin_tools", "to_langchain_tools", "build_langgraph_agent", "traced",
