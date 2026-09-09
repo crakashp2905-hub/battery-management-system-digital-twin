@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.21.0"
+__version__ = "0.22.0"
 
 from .agent import (
     ActionGate,
@@ -138,6 +138,7 @@ from .ocv_soc import OCVSOC
 from .online_id import RLSIdentifier
 from .pack import BatteryPack, PackConfig
 from .passport import BatteryPassport
+from .propagation import PropagationParams, RunawayPropagation, propagation_arrested_below
 from .range_predictor import (
     INDIA_CITY_ROUTES,
     INDIA_WEATHER,
@@ -182,6 +183,7 @@ __all__ = [
     "SafetyConfig", "state_of_safety",
     "InsulationMonitor", "ContactorWeldDetector",
     "SensorFDI", "SensorMonitor", "virtual_cell_voltage",
+    "RunawayPropagation", "PropagationParams", "propagation_arrested_below",
     "SOPConfig", "SOPLimit", "StateOfPower",
     "CANFrame", "BMSCanBus", "CanBusMonitor", "can_checksum",
     "generate_load_profile", "generate_power_profile",
