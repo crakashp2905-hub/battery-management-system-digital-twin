@@ -89,13 +89,21 @@ class DriveCycleData:
 def synthetic_drivecycle(chemistry: str = "nmc", duration_s: float = 1800.0,
                          dt: float = 1.0, soc0: float = 0.9, seed: int = 0,
                          noise_v: float = 0.005,
-                         current_bias_A: float = 0.0) -> DriveCycleData:
+                         current_bias_A: float = 0.0,
+                         temperature_C: float = 25.0) -> DriveCycleData:
     """Generate a physically-consistent drive cycle from the ECM (the fixture).
 
     The plant ECM's SoC is the ground truth, so any estimator can be scored
     against it exactly.  ``current_bias_A`` adds a sensor bias to the *measured*
     current (voltage and true SoC come from the unbiased current) — the classic
     case where a Coulomb counter drifts but a voltage-feedback filter does not.
+
+    ``temperature_C`` sets the (isothermal) cell temperature the plant runs at:
+    the ECM resistances follow their Arrhenius shift and the OCV its temperature
+    coefficient, so the generated voltage is genuinely cold/hot.  It is written
+    into :attr:`DriveCycleData.temperature_C`, so a temperature-aware estimator
+    can be scored against a cold or hot trace.  Defaults to 25 °C (the reference
+    temperature), which reproduces the previous behaviour exactly.
     """
     from .chemistry import get_chemistry_props
     from .data import generate_load_profile
@@ -113,14 +121,15 @@ def synthetic_drivecycle(chemistry: str = "nmc", duration_s: float = 1800.0,
 
     current = np.asarray(generate_load_profile(
         duration_s, dt=dt, mode="drive", c_rate=1.0, capacity_Ah=cap, seed=seed), float)
-    sim = ecm.simulate(current, dt=dt)
+    temps = np.full(len(current), float(temperature_C))
+    sim = ecm.simulate(current, dt=dt, temperatures=temps)
     rng = np.random.default_rng(seed)
     voltage = sim["v_terminal"] + rng.normal(0.0, noise_v, len(current))
     measured_current = current + float(current_bias_A)   # sensor bias, if any
     t = np.arange(len(current)) * dt
     return DriveCycleData(
         time_s=t, current_A=measured_current, voltage_V=voltage,
-        temperature_C=np.full(len(current), 25.0), soc_true=sim["soc"],
+        temperature_C=temps, soc_true=sim["soc"],
         capacity_Ah=cap, chemistry=chemistry, name=f"synthetic_{chemistry}")
 
 
@@ -174,13 +183,22 @@ def load_drivecycle_csv(path, chemistry: str = "nmc", capacity_Ah: float | None 
 
 
 # ======================================================================
-def estimator_leaderboard(data: DriveCycleData, estimators: list[str] | None = None):
+def estimator_leaderboard(data: DriveCycleData, estimators: list[str] | None = None,
+                          temperature_aware: bool = True):
     """Run each estimator on *data* and rank them by SoC RMSE.
 
     Returns a DataFrame indexed by estimator with ``rmse``, ``mae``, ``max_err``,
     and ``runtime_s`` — the head-to-head accuracy table on a real (or synthetic)
     trace.  Defaults to the recursive estimators (the LSTM needs separate training).
+
+    ``temperature_aware`` (default) feeds ``data.temperature_C`` to every
+    estimator whose ``run`` accepts a ``temperatures`` argument, so on a cold or
+    hot trace the filter uses the correct Arrhenius-shifted ECM and OCV.  Set it
+    ``False`` to score temperature-*naive* filters (assuming 25 °C) against the
+    same trace — the two runs quantify the value of a temperature sensor.
     """
+    import inspect
+
     import pandas as pd
 
     from .chemistry import get_chemistry_props
@@ -199,8 +217,12 @@ def estimator_leaderboard(data: DriveCycleData, estimators: list[str] | None = N
         est = make_soc_estimator(name, params=params, ocv_curve=ocv,
                                  capacity_Ah=data.capacity_Ah)
         est.reset(float(data.soc_true[0]))
+        # Pass the trace temperature only to estimators that accept it.
+        kw = {}
+        if temperature_aware and "temperatures" in inspect.signature(est.run).parameters:
+            kw["temperatures"] = data.temperature_C
         t0 = time.perf_counter()
-        soc_hat = np.asarray(est.run(data.current_A, data.voltage_V, data.dt), float)
+        soc_hat = np.asarray(est.run(data.current_A, data.voltage_V, data.dt, **kw), float)
         wall = time.perf_counter() - t0
         err = soc_hat - data.soc_true
         rows.append({

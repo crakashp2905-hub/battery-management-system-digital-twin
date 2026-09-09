@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.18.0] - 2026-09-09
+
+### Added
+- **Temperature dimension for the estimator benchmark.**
+  - `synthetic_drivecycle(..., temperature_C=25.0)` now generates an isothermal
+    trace at any temperature: the plant ECM follows its Arrhenius resistance
+    shift and the OCV its temperature coefficient, so the voltage is genuinely
+    cold/hot. Written into `DriveCycleData.temperature_C`. Default 25 °C
+    reproduces prior behaviour exactly.
+  - `estimator_leaderboard(..., temperature_aware=True)` feeds the trace
+    temperature to every estimator whose `run` accepts it, so a cold/hot trace
+    is scored with the correct model. `temperature_aware=False` scores a
+    25 °C-assuming filter against the same trace.
+  - `scripts/benchmark_estimators.py --temperature` reports the fair,
+    apples-to-apples comparison: a temperature-**aware** filter stays flat across
+    temperature (~0.1–0.3 % on NMC) while a temperature-**naive** one degrades to
+    ~22 % RMSE at −15 °C. (Cross-temperature ranking is deliberately avoided — it
+    is confounded by the shifting true SoC trajectory and operating point.)
+  - `docs/estimation.md` gains a **Temperature** section with the results and a
+    plain-English reading ("the takeaway is *feed the filter a cell
+    temperature*", not "which filter").
+- 3 tests (now **271**).
+
 ## [0.17.0] - 2026-09-09
 
 ### Added

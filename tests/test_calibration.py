@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 import bms
 
@@ -52,3 +53,33 @@ class TestCalibration:
         bms.save_drivecycle_csv(d, tmp_path / "dc.csv")
         loaded = bms.load_drivecycle_csv(tmp_path / "dc.csv", chemistry="nmc")
         assert loaded.source == "real"
+
+
+class TestTemperatureBenchmark:
+    def test_synthetic_drivecycle_honours_temperature(self):
+        warm = bms.synthetic_drivecycle("nmc", duration_s=600, seed=1, temperature_C=25.0)
+        cold = bms.synthetic_drivecycle("nmc", duration_s=600, seed=1, temperature_C=-15.0)
+        assert np.allclose(warm.temperature_C, 25.0)
+        assert np.allclose(cold.temperature_C, -15.0)
+        # A genuinely colder plant → different terminal voltage (Arrhenius R + OCV).
+        assert not np.allclose(warm.voltage_V, cold.voltage_V)
+        # 25 °C is the reference, so the measured current (the input) is unchanged.
+        assert np.allclose(warm.current_A, cold.current_A)
+
+    def test_temperature_aware_beats_naive_in_the_cold(self):
+        # Same cold trace scored two ways: filter told the temperature vs
+        # assuming 25 °C.  Knowing the temperature must not hurt, and helps a lot.
+        cold = bms.synthetic_drivecycle("nmc", duration_s=1200, seed=1,
+                                        current_bias_A=0.05, temperature_C=-10.0)
+        aware = bms.estimator_leaderboard(cold, ["ekf"], temperature_aware=True)
+        naive = bms.estimator_leaderboard(cold, ["ekf"], temperature_aware=False)
+        assert aware.loc["ekf", "rmse"] < naive.loc["ekf", "rmse"]
+        assert aware.loc["ekf", "rmse"] < 0.02          # aware stays accurate (<2%)
+
+    def test_temperature_aware_is_noop_at_reference(self):
+        # At 25 °C the "naive" assumption is correct, so both agree.
+        warm = bms.synthetic_drivecycle("nmc", duration_s=800, seed=4,
+                                        current_bias_A=0.05, temperature_C=25.0)
+        aware = bms.estimator_leaderboard(warm, ["ekf"], temperature_aware=True)
+        naive = bms.estimator_leaderboard(warm, ["ekf"], temperature_aware=False)
+        assert aware.loc["ekf", "rmse"] == pytest.approx(naive.loc["ekf", "rmse"], abs=1e-9)
