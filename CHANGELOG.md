@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.22.0] - 2026-09-09
+
+Safety-depth wave 3b — the flagship module-level safety capability.
+
+### Added
+- **Thermal-runaway propagation** (`bms/propagation.py`) — `RunawayPropagation`
+  models a module as lumped cells coupled to their neighbours and ambient
+  (`C·dT/dt = Q_exo + Σk·ΔT − h·ΔT`). A triggered cell releases its exotherm over
+  a window and heats neighbours; each crossing the onset temperature ignites and
+  cascades. With realistic coupling a single-cell runaway propagates down the
+  module (~13 s per cell in the reference case); a **thermal barrier**
+  (low coupling / more spacing) arrests it. `propagation_arrested_below()` sweeps
+  coupling to find the largest value at which propagation stops — a design aid
+  for sizing spacing/barriers.
+- 5 tests (now **302**).
+
 ## [0.21.0] - 2026-09-09
 
 Safety-depth wave 3 of the "add everything" program — three real BMS safety
