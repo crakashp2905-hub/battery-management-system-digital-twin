@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.20.0"
+__version__ = "0.21.0"
 
 from .agent import (
     ActionGate,
@@ -118,6 +118,7 @@ from .faults import (
     extract_features,
 )
 from .fmea import build_fmea_table, estimate_rul, estimate_rul_with_resistance
+from .hv_safety import ContactorWeldDetector, InsulationMonitor
 from .interpret import (
     FEATURE_NAMES,
     estimator_agreement,
@@ -148,6 +149,8 @@ from .range_predictor import (
     VehicleParams,
     WeatherConditions,
 )
+from .safety import SafetyConfig, state_of_safety
+from .sensor_fdi import SensorFDI, SensorMonitor, virtual_cell_voltage
 from .soc_estimators import (
     BiasEKFEstimator,
     CoulombCounter,
@@ -176,6 +179,9 @@ __all__ = [
     "build_fmea_table", "estimate_rul", "estimate_rul_with_resistance",
     "BMSSupervisor", "BMSState", "SupervisorConfig", "ContactorState",
     "PrechargeContactorSequencer", "PrechargeCircuit",
+    "SafetyConfig", "state_of_safety",
+    "InsulationMonitor", "ContactorWeldDetector",
+    "SensorFDI", "SensorMonitor", "virtual_cell_voltage",
     "SOPConfig", "SOPLimit", "StateOfPower",
     "CANFrame", "BMSCanBus", "CanBusMonitor", "can_checksum",
     "generate_load_profile", "generate_power_profile",
