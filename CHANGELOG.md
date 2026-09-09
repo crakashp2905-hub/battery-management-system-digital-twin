@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.21.0] - 2026-09-09
+
+Safety-depth wave 3 of the "add everything" program — three real BMS safety
+functions that live outside the cell models.
+
+### Added
+- **State-of-Safety index** (`bms/safety.py`) — `state_of_safety(result, …)`
+  fuses temperature, temperature-spread, voltage excursion, pressure/gas, SoH,
+  and imbalance into one `sos ∈ [0, 1]` (1 = safe) that degrades *before* any
+  single threshold trips, with a per-signal `breakdown` and the `worst_signal`.
+  `SoS = 1 − max(penalty)` (the worst signal governs — conservative for safety).
+- **Insulation monitor (IMD)** (`bms/hv_safety.py`) — `InsulationMonitor`
+  estimates HV-bus-to-chassis isolation resistance (`R_iso = V_pack / I_leak`)
+  and alarms on the regulatory **Ω/V** criterion (warn/fault).
+- **Contactor weld detection** — `ContactorWeldDetector`: after an open command,
+  a healthy DC-link bleeds down; a link that stays near pack voltage past the
+  settle time is flagged **welded**.
+- **Sensor FDI** (`bms/sensor_fdi.py`) — `SensorMonitor` / `SensorFDI` detect
+  per-channel **dropout / out-of-range / rate-spike / stuck** faults on V/I/T,
+  and `virtual_cell_voltage` gives a model-based replacement (OCV − IR − V_RC)
+  so a single sensor failure degrades gracefully instead of blinding the filter.
+
+- 14 tests (now **297**).
+
 ## [0.20.0] - 2026-09-09
 
 Estimation-frontier wave 2 of the "add everything" program.
