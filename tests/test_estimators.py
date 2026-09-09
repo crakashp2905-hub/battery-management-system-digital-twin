@@ -46,6 +46,53 @@ class TestEstimators:
         assert np.sqrt(np.mean((soc_hat - soc) ** 2)) < 0.01
 
 
+class TestBiasEKF:
+    def test_recovers_injected_current_bias(self, truth_trace):
+        p, oc, i, v, soc = truth_trace
+        true_bias = 0.12
+        est = bms.BiasEKFEstimator(params=p, ocv_curve=oc)
+        est.reset(float(soc[0]))
+        soc_hat = est.run(i + true_bias, v, 1.0)           # measured = true + bias
+        assert abs(est.current_bias_A - true_bias) < 0.03   # recovers the offset
+        assert est.bias_uncertainty_1sigma > 0.0            # reports its uncertainty
+        assert np.sqrt(np.mean((soc_hat - soc) ** 2)) < 0.01  # SoC stays accurate
+
+    def test_beats_coulomb_and_is_competitive_with_ekf_under_bias(self):
+        # Its unique value is *recovering* the offset; on SoC it reliably beats
+        # the open-loop Coulomb counter and stays competitive with the plain EKF
+        # (which merely rejects the bias as process noise).
+        d = bms.synthetic_drivecycle("nmc", duration_s=1800, seed=1, current_bias_A=0.15)
+        board = bms.estimator_leaderboard(d, ["coulomb", "ekf", "bias_ekf"])
+        assert board.loc["bias_ekf", "rmse"] < board.loc["coulomb", "rmse"]
+        assert board.loc["bias_ekf", "rmse"] <= 1.5 * board.loc["ekf", "rmse"]
+
+    def test_registered_and_uncertainty_exposed(self):
+        assert "bias_ekf" in bms.available_soc_estimators()
+        est = bms.make_soc_estimator("bias_ekf", params=bms.ECMParameters(),
+                                     ocv_curve=bms.OCVSOC())
+        assert isinstance(est, bms.RecursiveSocEstimator)
+
+
+class TestHysteresis:
+    def test_from_chemistry_defaults_to_chemistry_hysteresis(self):
+        # LFP carries the largest characteristic hysteresis; explicit 0 disables.
+        assert bms.OCVSOC.from_chemistry("lfp").hysteresis_v > 0.0
+        assert bms.OCVSOC.from_chemistry("lfp", hysteresis_v=0.0).hysteresis_v == 0.0
+        assert (bms.OCVSOC.from_chemistry("lfp").hysteresis_v
+                > bms.OCVSOC.from_chemistry("lto").hysteresis_v)   # flat OCV → more
+
+    def test_hysteresis_aware_beats_naive_on_flat_ocv(self):
+        # Averaged over seeds: modelling hysteresis helps most on flat-OCV LFP.
+        aware, naive = [], []
+        for seed in range(4):
+            d = bms.synthetic_drivecycle("lfp", duration_s=1500, seed=seed)
+            aware.append(bms.estimator_leaderboard(
+                d, ["ekf"], hysteresis_aware=True).loc["ekf", "rmse"])
+            naive.append(bms.estimator_leaderboard(
+                d, ["ekf"], hysteresis_aware=False).loc["ekf", "rmse"])
+        assert np.mean(aware) < np.mean(naive)      # aware wins on average
+
+
 
 class TestEstimatorRegistry:
     @staticmethod

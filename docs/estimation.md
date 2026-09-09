@@ -44,6 +44,7 @@ est = make_soc_estimator("joint_ekf", params=..., ocv_curve=..., capacity_Ah=2.3
 | `ukf` | Unscented Kalman filter on the ECM | no | yes (1σ) | no |
 | `lstm` | Pure-NumPy LSTM (feature → SoC) | **yes** | no | no |
 | `joint_ekf` | **Joint SoC + capacity EKF** | no | yes (1σ each) | **yes** |
+| `bias_ekf` | **SoC + current-bias EKF** | no | yes (1σ each) | no (gives bias) |
 
 The **joint-EKF** augments the state with capacity, `x = [SoC, V_RC1, V_RC2, Q]`,
 and tracks `Q` as a slow random walk. Capacity becomes observable whenever SoC
@@ -51,6 +52,14 @@ moves appreciably (the *rate* of SoC change depends on `Q`), so `soh = Q/Q₀`
 falls out of the same filter — with its own 1σ that stays wide under a flat load
 and tightens on a real charge/discharge excursion. This is why it is the default
 online estimator in the supervisor and dashboard.
+
+The **bias-EKF** augments the state with the current-sensor offset,
+`x = [SoC, V_RC1, V_RC2, b]`, treating the true current as `i_true = i_meas − b`.
+The offset is observable wherever the OCV has slope, so the filter both keeps SoC
+accurate under a biased sensor **and recovers the offset** (`current_bias_A`) for
+recalibration — the online answer to the current-bias failure below. On a
+well-excited NMC trace with a +0.15 A bias it recovers `+0.154 A` and holds
+0.14 % SoC RMSE (vs Coulomb 1.88 %).
 
 ## Benchmark — which SoC filter is most accurate?
 
@@ -140,15 +149,44 @@ accepts a per-sample temperature; the supervisor already passes it. LFP is worse
 in absolute terms at every temperature (flat OCV → weak voltage feedback), which
 again points at current sensing rather than filter choice.
 
+### OCV hysteresis — the flat-OCV fix
+
+Every chemistry has a characteristic OCV **hysteresis** (`props["hysteresis_v"]`,
+largest for flat-OCV LFP/LMFP: a relaxed cell sits ~20 mV higher on the charge
+branch than the discharge branch at the same SoC). `OCVSOC.from_chemistry` now
+applies it by default; `estimator_leaderboard(..., hysteresis_aware=…)` toggles
+it in the filter's measurement model. Modelling it helps most exactly where the
+OCV slope is too weak to carry SoC on its own — EKF SoC RMSE, mean of 5 seeds:
+
+| chemistry | aware | naive | gain |
+|---|---|---|---|
+| lfp | 1.57 | 6.08 | **+4.51** |
+| lmfp | 0.83 | 2.95 | **+2.12** |
+| lmo | 0.57 | 2.48 | **+1.91** |
+| nmc / nca / lto | ~0.2–0.4 | ~0.8–1.0 | +0.6 |
+
+`python scripts/benchmark_estimators.py --hysteresis`. The takeaway mirrors the
+temperature one: on flat-OCV chemistries the win comes from **modelling the
+physics the OCV curve alone can't express**, not from a fancier filter.
+
+### Current-sensor bias — recover it, don't just tolerate it
+
+`python scripts/benchmark_estimators.py --bias`. A plain EKF *rejects* a biased
+current sensor as process noise; the **bias-EKF estimates it**. Under a ±0.10–
+0.15 A offset it beats the open-loop Coulomb counter and stays competitive with
+the plain EKF on SoC, while additionally handing back the recovered offset
+(NMC: `+0.15 A → +0.154 A`) so the sensor can be recalibrated.
+
 ### Choosing
 
 | If you… | Use |
 |---|---|
 | Trust the current sensor and know SoC₀ | `coulomb` (cheapest) |
-| Have real sensor bias/drift and a sloped OCV | `ekf` (best SoC here) |
+| Have real sensor bias/drift and a sloped OCV | `ekf`, or `bias_ekf` to also recover the offset |
 | Want SoC **and** online SoH from one filter | `joint_ekf` (the default) |
+| Want SoC **and** the live current-sensor offset | `bias_ekf` |
 | Operate away from 25 °C | any recursive filter **fed the cell temperature** (naive filters lose 10–20 % RMSE in the cold) |
-| Have a flat-OCV chemistry (LFP/LMO/SSB) | invest in current sensing; filter choice matters less |
+| Have a flat-OCV chemistry (LFP/LMFP/LMO) | keep **hysteresis modelling on** (default) — it recovers 2–5 % RMSE — and invest in current sensing |
 | Have a trained data-driven model | `lstm`, or bring your own via `model_from_file` / `SklearnSocEstimator` / `OnnxSocEstimator` |
 
 ## Wiring notes

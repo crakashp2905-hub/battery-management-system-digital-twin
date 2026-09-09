@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.19.0] - 2026-09-09
+
+Estimation-fidelity wave 1 of the "add everything" program — both items fix a
+weakness the project's own benchmarks exposed.
+
+### Added
+- **`bias_ekf` — online current-sensor-bias recovery** (`BiasEKFEstimator`). Augments
+  the EKF state with the sensor offset `b` (`x = [SoC, V_RC1, V_RC2, b]`, `i_true =
+  i_meas − b`) and estimates it as a random walk. It keeps SoC accurate under a
+  biased sensor **and recovers the offset** (`current_bias_A`, with 1σ) for
+  recalibration — the online answer to the sensor-bias failure the benchmark
+  highlighted. NMC +0.15 A → recovers +0.154 A at 0.14 % SoC RMSE (Coulomb 1.88 %).
+  Registered as `bias_ekf`; `benchmark_estimators.py --bias`.
+
+### Changed
+- **OCV hysteresis is now modelled per chemistry by default** (fixes the flat-OCV
+  weakness). Each chemistry carries a characteristic `hysteresis_v`
+  (largest for LFP/LMFP); `OCVSOC.from_chemistry` applies it unless overridden.
+  Mean-of-5-seeds EKF SoC RMSE improves **LFP +4.51 %, LMFP +2.12 %, LMO +1.91 %**,
+  NMC/NCA/LTO +0.6 %. `estimator_leaderboard(..., hysteresis_aware=…)` toggles it;
+  `benchmark_estimators.py --hysteresis`.
+- `docs/estimation.md` gains **Hysteresis** and **Current-sensor bias** sections.
+
+### Note
+The static `±hysteresis_v·sign(I)` model already existed in `OCVSOC`; this wave
+gives it physical per-chemistry values and proves the benefit. A smoother
+**dynamic (Plett) one-state** hysteresis model is scheduled for wave 2.
+
+- 5 tests (now **276**).
+
 ## [0.18.0] - 2026-09-09
 
 ### Added

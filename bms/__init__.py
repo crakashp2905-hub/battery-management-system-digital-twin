@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.18.0"
+__version__ = "0.19.0"
 
 from .agent import (
     ActionGate,
@@ -148,6 +148,7 @@ from .range_predictor import (
     WeatherConditions,
 )
 from .soc_estimators import (
+    BiasEKFEstimator,
     CoulombCounter,
     EKFEstimator,
     LSTMEstimator,
@@ -168,7 +169,7 @@ __all__ = [
     "Balancer", "PassiveBalancer", "SwitchedCapacitorBalancer",
     "InductorBalancer", "compare_balancers",
     "CoulombCounter", "EKFEstimator", "UKFEstimator", "LSTMEstimator",
-    "benchmark_estimators",
+    "BiasEKFEstimator", "benchmark_estimators",
     "FaultMode", "FaultSpec", "FaultInjector", "HybridFaultDetector",
     "RollingFeatureBuffer", "extract_features",
     "build_fmea_table", "estimate_rul", "estimate_rul_with_resistance",
