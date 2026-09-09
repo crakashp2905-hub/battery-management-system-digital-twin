@@ -77,5 +77,54 @@ def run(markdown: bool = False) -> None:
         print(f"  {est:10s} {agg[est]:.3f}")
 
 
+# Temperatures for the sweep — isothermal traces the plant genuinely runs at.
+TEMPERATURES = [25.0, 15.0, 5.0, -5.0, -15.0]
+
+
+def run_temperature(markdown: bool = False,
+                    chemistries=("nmc", "lfp"), filt: str = "ekf") -> None:
+    """Quantify the value of a temperature sensor, fairly.
+
+    Cross-*temperature* RMSE is confounded (the true SoC trajectory and the
+    physical operating point both shift with temperature), so we do not rank
+    across temperatures.  Instead, at each temperature we score the SAME trace
+    two ways — the filter **told** the temperature vs the filter **assuming
+    25 °C** — an apples-to-apples measure of what a temperature sensor buys you.
+    """
+    if markdown:
+        print("\n### Temperature-aware vs temperature-naive "
+              f"(`{filt}`, SoC RMSE %, current bias 0.05 A)\n")
+        cols = " | ".join(f"{int(t)}°C" for t in TEMPERATURES)
+        print(f"| {filt} @ | {cols} |")
+        print("|" + "---|" * (len(TEMPERATURES) + 1))
+
+    for chem in chemistries:
+        aware_row, naive_row = [], []
+        for T in TEMPERATURES:
+            data = bms.synthetic_drivecycle(chem, duration_s=1800, seed=1,
+                                            current_bias_A=0.05, temperature_C=T)
+            aware = bms.estimator_leaderboard(
+                data, [filt], temperature_aware=True).loc[filt, "rmse"] * 100
+            naive = bms.estimator_leaderboard(
+                data, [filt], temperature_aware=False).loc[filt, "rmse"] * 100
+            aware_row.append(aware)
+            naive_row.append(naive)
+        if markdown:
+            print(f"| {chem} · aware | "
+                  + " | ".join(f"{v:.2f}" for v in aware_row) + " |")
+            print(f"| {chem} · naive | "
+                  + " | ".join(f"{v:.2f}" for v in naive_row) + " |")
+        else:
+            print(f"\n=== {chem.upper()} · temperature sweep "
+                  f"({filt}, bias 0.05 A) ===")
+            print("  T[°C]   aware_RMSE%   naive_RMSE%   sensor_gain%")
+            for T, a, n in zip(TEMPERATURES, aware_row, naive_row):
+                print(f"  {T:>5.0f}   {a:10.3f}   {n:10.3f}   {n - a:+10.3f}")
+
+
 if __name__ == "__main__":
-    run(markdown="--markdown" in sys.argv)
+    md = "--markdown" in sys.argv
+    if "--temperature" in sys.argv:
+        run_temperature(markdown=md)
+    else:
+        run(markdown=md)

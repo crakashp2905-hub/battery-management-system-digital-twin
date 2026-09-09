@@ -106,6 +106,40 @@ Three conditions per chemistry: **nominal** (clean current, 5 mV noise),
   filter**, not for SoC alone.
 - `lstm` is excluded from the leaderboard because it needs separate training.
 
+### Temperature — the value of a temperature sensor
+
+Ranking estimators *across* temperatures is confounded: as the cell gets colder
+both the true SoC trajectory and the physical operating point shift (a 1 C
+discharge at −20 °C collapses the terminal voltage below any real cutoff), so a
+cross-temperature RMSE table is apples-to-oranges. The fair, decision-relevant
+question is instead answered on **one trace at a time**: score the same cold/hot
+drive cycle with the filter **told** the temperature vs the filter **assuming
+25 °C**. Run it with:
+
+```bash
+python scripts/benchmark_estimators.py --temperature            # sweep table
+python scripts/benchmark_estimators.py --temperature --markdown  # docs table
+```
+
+EKF SoC RMSE (%), current bias 0.05 A, isothermal trace:
+
+| ekf @ | 25 °C | 15 °C | 5 °C | −5 °C | −15 °C |
+|---|---|---|---|---|---|
+| nmc · **aware** | 0.08 | 0.11 | 0.21 | 0.33 | 0.24 |
+| nmc · naive (assumes 25 °C) | 0.08 | 2.50 | 5.85 | 10.83 | **21.95** |
+| lfp · **aware** | 1.47 | 1.32 | 1.01 | 0.22 | 0.74 |
+| lfp · naive (assumes 25 °C) | 1.47 | 8.19 | 7.95 | 14.35 | **13.23** |
+
+**Reading it:** a temperature-aware filter is essentially *flat* across
+temperature (~0.1–0.3 % on NMC) because it uses the Arrhenius-shifted ECM
+resistance and the temperature-corrected OCV. A temperature-**blind** filter is
+only good near 25 °C and degrades catastrophically in the cold (NMC: 22 % RMSE
+at −15 °C). The takeaway is not "which filter" but **"feed the filter a cell
+temperature"** — every recursive estimator here (`ekf`, `ukf`, `joint_ekf`)
+accepts a per-sample temperature; the supervisor already passes it. LFP is worse
+in absolute terms at every temperature (flat OCV → weak voltage feedback), which
+again points at current sensing rather than filter choice.
+
 ### Choosing
 
 | If you… | Use |
@@ -113,6 +147,7 @@ Three conditions per chemistry: **nominal** (clean current, 5 mV noise),
 | Trust the current sensor and know SoC₀ | `coulomb` (cheapest) |
 | Have real sensor bias/drift and a sloped OCV | `ekf` (best SoC here) |
 | Want SoC **and** online SoH from one filter | `joint_ekf` (the default) |
+| Operate away from 25 °C | any recursive filter **fed the cell temperature** (naive filters lose 10–20 % RMSE in the cold) |
 | Have a flat-OCV chemistry (LFP/LMO/SSB) | invest in current sensing; filter choice matters less |
 | Have a trained data-driven model | `lstm`, or bring your own via `model_from_file` / `SklearnSocEstimator` / `OnnxSocEstimator` |
 
