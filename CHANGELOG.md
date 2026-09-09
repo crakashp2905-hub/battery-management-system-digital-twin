@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.25.0] - 2026-09-09
+
+Dependability wave 4c — property-based invariants + real-data harness.
+
+### Added
+- **Property-based invariant tests** (`tests/test_properties.py`, `hypothesis`):
+  charge conservation (Coulomb integrates exactly), OCV monotonicity in SoC,
+  non-negative irreversible heat with the ohmic floor, State-of-Safety bounded to
+  [0, 1], recursive-estimator SoC in [0, 1], and CAN checksum ∈ [0, 255] — laws
+  that must hold for *any* input. `hypothesis` added to the `dev` extra.
+- **Real-data validation harness** (`scripts/validate_real.py`) — runs the
+  calibration → leaderboard → bucketed validation-report pipeline on any
+  drive-cycle CSV, keeping real vs synthetic results tagged; falls back to the
+  synthetic fixture as a demo. `docs/validation.md` documents the datasets
+  (LG / NASA / MIT-Stanford) and the rigorous calibrate-then-validate pipeline.
+- 6 tests (now **321**).
+
+### Note
+Public datasets are large and licence-bound, so none are committed; the pipeline
+runs the moment a licensed trace is dropped in, and every result is tagged with
+its `source` so a real-data number is never conflated with a synthetic one.
+
 ## [0.24.0] - 2026-09-09
 
 Dependability wave 4b — the safety case: FMEA → test traceability + Fault Tree.
