@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.27.0"
+__version__ = "0.28.0"
 
 from .agent import (
     ActionGate,
@@ -186,6 +186,7 @@ from .soc_estimators import (
 from .soh_estimator import JointEKFSoH
 from .sop import SOPConfig, SOPLimit, StateOfPower
 from .thermal import PIDController, PredictiveCoolingController, ThermalModel, ThermalParameters
+from .twin_sync import TwinSync
 
 __all__ = [
     "__version__",
@@ -243,4 +244,5 @@ __all__ = [
     "save_drivecycle_csv", "estimator_leaderboard", "load_capacity_fade_csv",
     "nasa_mat_to_capacity", "soh_curve", "DATASET_SOURCES", "LG_COLUMN_MAP",
     "PulseFitResult", "fit_from_pulse", "fit_cell_distribution", "validation_report",
+    "TwinSync",
 ]
