@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.28.0] - 2026-09-14
+
+New-capability wave 5c — online data assimilation (simulator → **digital twin**).
+
+### Added
+- **`TwinSync`** (`bms/twin_sync.py`) — continuously corrects the ECM plant
+  against a live (current, voltage, temperature) stream: it runs the plant
+  forward on the measured current, then nudges the plant's SoC toward the
+  measured terminal voltage with a Luenberger correction, so the twin *tracks*
+  the physical cell instead of drifting open-loop. It also watches the
+  **model-vs-measurement residual under load** and raises a **`drift`** flag when
+  the residual grows — the twin knowing its model no longer matches reality
+  (resistance growth, OCV shift) and needs recalibration.
+  - Verified: a matched twin tracks truth to <1 % SoC and never flags drift;
+    it pulls a 15 %-wrong initial SoC back toward truth; and an aged cell (R0 >2×)
+    fed to a fresh-model twin is correctly flagged as drifted. `correction_gain=0`
+    reduces it to open-loop Coulomb counting.
+- 5 tests (now **338**).
+
 ## [0.27.0] - 2026-09-14
 
 New-capability wave 5b — degradation-mode diagnosis (LLI vs LAM).

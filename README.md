@@ -8,16 +8,16 @@ diagnostics, an EV range predictor, and a plain-language interpretability layer 
 reproducible, fully-tested framework where every module is independently usable.
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.27.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-0.28.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
   <img alt="coverage" src="https://img.shields.io/badge/coverage-90%25-brightgreen">
-  <img alt="tests" src="https://img.shields.io/badge/tests-333%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-338%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 333/333 unit tests pass • 35 library modules • 7 chemistries • ruff-clean •
+> **Status.** ✅ 338/338 unit tests pass • 36 library modules • 7 chemistries • ruff-clean •
 > CI on Python 3.10–3.13 • Streamlit dashboard + EV range predictor + executed demo notebook.
 
 ---
@@ -83,7 +83,7 @@ reproducible, fully-tested framework where every module is independently usable.
 - **Data-calibrated** — fit ECM parameters from HPPC/pulse or drive data (`fit_from_pulse`),
   learn per-cell parameter distributions instead of fixed scatter (`fit_cell_distribution`), and
   report accuracy bucketed by C-rate/temperature — kept separate for **synthetic vs real** data.
-- **Reproducible & tested** — every randomness source is seeded; 333 unit tests; pip-installable
+- **Reproducible & tested** — every randomness source is seeded; 338 unit tests; pip-installable
   with GitHub Actions CI (ruff-blocking + 90% coverage gate).
 
 ---
@@ -110,7 +110,7 @@ Each chemistry lives in `bms/chemistry.py` (`CHEMISTRY_PROPS`); request one with
 
 ```
 battery-management-system-digital-twin/
-├── bms/                       # Library (35 modules)
+├── bms/                       # Library (36 modules)
 │   ├── chemistry.py           # 7 chemistries: OCV tables, Arrhenius, limits, defaults
 │   ├── ocv_soc.py             # OCV–SOC characteristic (PCHIP interpolant, temp coefficient)
 │   ├── ecm.py                 # 2-RC equivalent-circuit model, Arrhenius scaling, parameter ID
@@ -119,6 +119,7 @@ battery-management-system-digital-twin/
 │   ├── balancing.py           # Passive / switched-capacitor / inductor balancing + comparison
 │   ├── soc_estimators.py      # Coulomb counter, EKF, UKF, NumPy LSTM + benchmark harness
 │   ├── soh_estimator.py       # Joint EKF: online SoC + capacity (SoH) with uncertainty
+│   ├── twin_sync.py           # Online data assimilation (plant tracks device + drift flag)
 │   ├── online_id.py           # RLS online R0 identification (tracks drift, no re-fit)
 │   ├── estimation.py          # Model-agnostic protocols + registry + BYO adapter + Estimate
 │   ├── faults.py              # Fault injection + hybrid rule/ML detector + feature buffer
@@ -150,7 +151,7 @@ battery-management-system-digital-twin/
 ├── notebooks/                 # Executed end-to-end demo
 ├── scripts/build_notebook.py  # Reproducible notebook generator
 ├── bms.dbc                    # Shipped Vector DBC (cantools-validated, matches the encoder)
-├── tests/test_bms.py          # 333 unit tests
+├── tests/test_bms.py          # 338 unit tests
 ├── figures/                   # 12 PNGs produced by the notebook
 ├── docs/architecture.md       # Layered-design notes & invariants
 ├── docs/estimation.md         # Which model produces each quantity + SoC benchmark
@@ -330,7 +331,7 @@ leaderboard + pulse parameter-ID), and mechanical gas/pressure sensing (pressure
 ## Testing
 
 ```bash
-pytest -q                                  # 333 tests, ~30 s
+pytest -q                                  # 338 tests, ~30 s
 pytest --cov=bms --cov-fail-under=85       # coverage gate (CI enforces ≥ 85%; currently 90%)
 ruff check .                               # lint — blocking in CI
 ```
