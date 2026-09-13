@@ -25,7 +25,9 @@ from __future__ import annotations
 
 import numpy as np
 
-_trapz = getattr(np, "trapezoid", getattr(np, "trapz"))
+# ``np.trapz`` was removed in NumPy 2.0 (renamed ``np.trapezoid``); pick whichever
+# exists without eagerly evaluating the missing one.
+_trapz = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
 
 
 def _gaussian_ic(v_axis: np.ndarray, peak_v: float, height: float,

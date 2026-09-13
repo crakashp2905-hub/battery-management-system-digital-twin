@@ -78,9 +78,10 @@ from bms import (
 )
 from bms._train_detector import generate_fault_training_data
 
-# ``np.trapezoid`` was added in NumPy 2.0; fall back to ``np.trapz`` on the
-# older NumPy in the support range (``numpy>=1.24``).
-_trapz = getattr(np, "trapezoid", getattr(np, "trapz"))
+# ``np.trapezoid`` was added in NumPy 2.0 and ``np.trapz`` removed there; pick
+# whichever exists (support range ``numpy>=1.24``) without evaluating the missing
+# one (``getattr(np, "trapz")`` would raise on NumPy 2.x).
+_trapz = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
 
 # ── Design tokens ────────────────────────────────────────────────────────────
 _P = {          # indigo / amber / emerald / rose / violet / pink / cyan
