@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.25.0"
+__version__ = "0.26.0"
 
 from .agent import (
     ActionGate,
@@ -56,6 +56,12 @@ from .calibration import (
     validation_report,
 )
 from .can import BMSCanBus, CanBusMonitor, CANFrame, can_checksum
+from .charge_control import (
+    ChargeLimits,
+    MPCCharger,
+    cccv_charge,
+    compare_charging,
+)
 from .charging import (
     METHOD_POWER_KW,
     ChargeMethod,
@@ -217,6 +223,7 @@ __all__ = [
     "AgingModel", "AgingParams", "AgingState",
     "ChargeMethod", "ChargeProtocol", "ChargeResult", "ChargingModel",
     "METHOD_POWER_KW", "compare_methods", "plating_c_limit",
+    "MPCCharger", "ChargeLimits", "cccv_charge", "compare_charging",
     "Estimate", "SocEstimator", "RecursiveSocEstimator", "FunctionSocEstimator",
     "soc_estimate", "make_soc_estimator", "available_soc_estimators",
     "register_soc_estimator",

@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.26.0] - 2026-09-13
+
+New-capability wave 5a — model-predictive fast charging.
+
+### Added
+- **`MPCCharger` — optimal / model-predictive charging** (`bms/charge_control.py`).
+  Each step it picks the largest charge current that keeps the next state inside
+  **all** limits at once — terminal voltage, cell temperature, and the
+  lithium-**plating** cap `plating_c_limit(T, SoC)·Q` — driving SoC to a target
+  as fast as the physics allows (closed-form per-constraint current limits over
+  the twin's ECM + lumped thermal plant). `cccv_charge()` runs CC-CV on the same
+  plant and `compare_charging()` reports both.
+- Result: on a 2.3 Ah NMC cell, MPC reaches 80 % SoC **~43 % faster than CC-CV**
+  (1236 s vs 2160 s) while riding the plating limit exactly (margin ≥ 0, never
+  plating) and staying well under the temperature ceiling.
+- 5 tests (now **326**).
+
 ## [0.25.0] - 2026-09-09
 
 Dependability wave 4c — property-based invariants + real-data harness.
