@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.26.0"
+__version__ = "0.27.0"
 
 from .agent import (
     ActionGate,
@@ -99,6 +99,7 @@ from .datasets import (
     soh_curve,
     synthetic_drivecycle,
 )
+from .degradation_modes import diagnose_degradation_modes, synthetic_degraded_ic
 from .diagnostics import compute_crate_map, simulate_eis
 from .dva import compute_dva, compute_ica, synthetic_discharge_for_dva
 from .ecm import ECMParameters, SecondOrderECM, fit_ecm_parameters
@@ -217,6 +218,7 @@ __all__ = [
     "BatteryPassport",
     "compute_dva", "compute_ica", "synthetic_discharge_for_dva",
     "simulate_eis", "compute_crate_map",
+    "diagnose_degradation_modes", "synthetic_degraded_ic",
     "RangePredictor", "VehicleParams", "RouteSegment", "WeatherConditions",
     "RangePrediction", "ROUTE_PROFILES", "VEHICLE_PRESETS",
     "INDIA_CITY_ROUTES", "INDIA_WEATHER",

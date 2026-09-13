@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.27.0] - 2026-09-14
+
+New-capability wave 5b — degradation-mode diagnosis (LLI vs LAM).
+
+### Added
+- **Degradation-mode diagnosis** (`bms/degradation_modes.py`) — decompose
+  capacity fade into **loss of lithium inventory (LLI)** vs **loss of active
+  material (LAM)** from incremental-capacity (dQ/dV) curves (Dubarry-style).
+  LAM lowers the IC **peak height**; LLI narrows the accessible window so the IC
+  **area** shrinks at fixed height — an invertible two-mode split:
+  `LAM = 1 − height_ratio`, `LLI = 1 − area_ratio/height_ratio`.
+  `diagnose_degradation_modes(v, ic_fresh, ic_aged)` recovers both (and the
+  `dominant_mode`); `synthetic_degraded_ic(lli, lam)` builds a known fresh/aged
+  pair, and the diagnosis recovers the injected fractions to <2 %.
+- 7 tests (now **333**).
+
 ## [0.26.0] - 2026-09-13
 
 New-capability wave 5a — model-predictive fast charging.
