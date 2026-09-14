@@ -32,6 +32,39 @@ class CANFrame:
             raise ValueError("BMS telemetry frames must contain exactly 8 bytes")
 
 
+# Valid CAN FD payload lengths (DLC): 0–8, then 12/16/20/24/32/48/64 bytes.
+CANFD_DLCS = (0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64)
+
+
+@dataclass(frozen=True)
+class CANFDFrame:
+    """A CAN FD data frame — up to 64-byte payloads and an optional bit-rate
+    switch, for the richer diagnostics/telemetry classic CAN's 8 bytes can't hold.
+    """
+
+    arbitration_id: int
+    data: bytes
+    is_extended_id: bool = False
+    bitrate_switch: bool = True
+
+    def __post_init__(self) -> None:
+        max_id = 0x1FFFFFFF if self.is_extended_id else 0x7FF
+        if not 0 <= self.arbitration_id <= max_id:
+            raise ValueError("arbitration_id is outside the CAN identifier range")
+        if len(self.data) not in CANFD_DLCS:
+            raise ValueError(f"CAN FD payload length {len(self.data)} is not a valid "
+                             f"DLC ({', '.join(map(str, CANFD_DLCS))})")
+
+    @staticmethod
+    def pad_to_dlc(data: bytes) -> bytes:
+        """Zero-pad ``data`` up to the next valid CAN FD DLC (≤ 64 bytes)."""
+        n = len(data)
+        target = next((d for d in CANFD_DLCS if d >= n), None)
+        if target is None:
+            raise ValueError("payload exceeds the 64-byte CAN FD maximum")
+        return bytes(data) + b"\x00" * (target - n)
+
+
 def can_checksum(data: bytes) -> int:
     """8-bit additive checksum over a frame payload (0–255)."""
     return sum(bytes(data)) & 0xFF

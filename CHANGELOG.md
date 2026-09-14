@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.32.0] - 2026-09-14
+
+Delivery wave 6d — CAN FD frames + UDS (ISO 14229) diagnostics.
+
+### Added
+- **CAN FD** (`bms/can.py`): `CANFDFrame` supports the full CAN FD DLC set
+  (0–8, 12/16/20/24/32/48/64 bytes) with validation, plus `CANFDFrame.pad_to_dlc`
+  to round a payload up to a legal length — the richer frames classic CAN's
+  8 bytes cannot hold.
+- **UDS diagnostic server** (`bms/uds.py`): a minimal in-memory `UDSServer`
+  answering the services a battery ECU uses — `0x22` ReadDataByIdentifier (live
+  pack V / SoC / SoH / temperature), `0x19`/`0x14` read & clear **DTCs** (the
+  twin's fault labels map to 3-byte DTCs via `FAULT_TO_DTC`), `0x10` session
+  control, `0x3E` tester-present — with proper positive (`SID+0x40`) and negative
+  (`0x7F`) responses.
+- 19 tests (now **373**).
+
 ## [0.31.0] - 2026-09-14
 
 Delivery wave 6c — one-command HTML health & validation report.

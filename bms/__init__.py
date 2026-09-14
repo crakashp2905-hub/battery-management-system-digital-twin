@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.31.0"
+__version__ = "0.32.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -56,7 +56,7 @@ from .calibration import (
     fit_from_pulse,
     validation_report,
 )
-from .can import BMSCanBus, CanBusMonitor, CANFrame, can_checksum
+from .can import BMSCanBus, CanBusMonitor, CANFDFrame, CANFrame, can_checksum
 from .charge_control import (
     ChargeLimits,
     MPCCharger,
@@ -196,6 +196,7 @@ from .soh_estimator import JointEKFSoH
 from .sop import SOPConfig, SOPLimit, StateOfPower
 from .thermal import PIDController, PredictiveCoolingController, ThermalModel, ThermalParameters
 from .twin_sync import TwinSync
+from .uds import FAULT_TO_DTC, UDSServer
 
 __all__ = [
     "__version__",
@@ -222,6 +223,7 @@ __all__ = [
     "RunawayPropagation", "PropagationParams", "propagation_arrested_below",
     "SOPConfig", "SOPLimit", "StateOfPower",
     "CANFrame", "BMSCanBus", "CanBusMonitor", "can_checksum",
+    "CANFDFrame", "UDSServer", "FAULT_TO_DTC",
     "generate_load_profile", "generate_power_profile",
     "generate_cccv_profile",
     "load_nasa_like_dataset", "generate_aging_profile",
