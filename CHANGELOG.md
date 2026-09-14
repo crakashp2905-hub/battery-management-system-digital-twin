@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.30.0] - 2026-09-14
+
+Realism wave 6b — analog front-end (AFE) measurement model.
+
+### Added
+- **`AFE` / `AFEConfig`** (`bms/afe.py`) — the measurement chain a real BMS reads
+  through: ADC **quantisation**, **gain/offset** error, **thermal noise**, and a
+  bandwidth-limited (and offset) **current sensor**. `AFE.apply_to_drivecycle`
+  passes a clean trace through the chain so estimators can be scored against
+  realistic measurements.
+- Result: through a realistic AFE the estimator **ranking flips** — with an
+  ideal current the Coulomb counter is unbeatable (0.00 % on the synthetic
+  fixture), but under a real current sensor (offset + bandwidth + quantisation)
+  it degrades to ~0.6 % and a voltage-feedback filter (UKF/EKF) wins. A genuinely
+  novel, honest result: what "best estimator" means depends on the front-end.
+- 6 tests (now **351**).
+
 ## [0.29.0] - 2026-09-14
 
 Domains wave 6a — stationary / grid energy storage (a new application domain

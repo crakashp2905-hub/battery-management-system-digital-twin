@@ -24,8 +24,9 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.29.0"
+__version__ = "0.30.0"
 
+from .afe import AFE, AFEConfig
 from .agent import (
     ActionGate,
     DiagnosisReport,
@@ -254,4 +255,5 @@ __all__ = [
     "TwinSync",
     "StationaryStorage", "peak_shaving_dispatch", "arbitrage_schedule",
     "simulate_dispatch", "optimal_storage_soc",
+    "AFE", "AFEConfig",
 ]
