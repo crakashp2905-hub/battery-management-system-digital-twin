@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.29.0] - 2026-09-14
+
+Domains wave 6a — stationary / grid energy storage (a new application domain
+beside the EV range predictor).
+
+### Added
+- **Stationary storage dispatch** (`bms/grid_storage.py`): `StationaryStorage`
+  (energy-level battery with power/energy limits and round-trip efficiency),
+  duty-cycle generators `peak_shaving_dispatch` and `arbitrage_schedule`, and
+  `simulate_dispatch` (SoC/power trajectories, energy served/unmet, throughput,
+  EFC). With `degradation_aware=True` + an `AgingModel` it prices each discharge
+  into fade and skips cycles not worth the wear.
+- **`optimal_storage_soc(days, temperature_C)`** — the SoC that minimises
+  **calendar** fade over a horizon (for a battery that mostly sits): sweeps the
+  calendar-aging model and returns the best SoC and fade at each. Lower/mid SoC
+  and cooler storage fade least, as expected.
+- 7 tests (now **345**).
+
 ## [0.28.0] - 2026-09-14
 
 New-capability wave 5c — online data assimilation (simulator → **digital twin**).
