@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.28.0"
+__version__ = "0.29.0"
 
 from .agent import (
     ActionGate,
@@ -141,6 +141,13 @@ from .fta import (
     thermal_runaway_tree,
     to_mermaid,
 )
+from .grid_storage import (
+    StationaryStorage,
+    arbitrage_schedule,
+    optimal_storage_soc,
+    peak_shaving_dispatch,
+    simulate_dispatch,
+)
 from .hv_safety import ContactorWeldDetector, InsulationMonitor
 from .interpret import (
     FEATURE_NAMES,
@@ -245,4 +252,6 @@ __all__ = [
     "nasa_mat_to_capacity", "soh_curve", "DATASET_SOURCES", "LG_COLUMN_MAP",
     "PulseFitResult", "fit_from_pulse", "fit_cell_distribution", "validation_report",
     "TwinSync",
+    "StationaryStorage", "peak_shaving_dispatch", "arbitrage_schedule",
+    "simulate_dispatch", "optimal_storage_soc",
 ]
