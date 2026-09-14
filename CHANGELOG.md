@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.31.0] - 2026-09-14
+
+Delivery wave 6c — one-command HTML health & validation report.
+
+### Added
+- **`build_health_report` / `save_report`** (`bms/report.py`,
+  `scripts/generate_report.py`) — run the twin's key analyses and render a
+  **self-contained HTML** report (inline CSS, no external assets): estimator
+  leaderboard, safety case (FMEA top risks + fault-tree top-event probability),
+  MPC-vs-CC-CV charging comparison, and a degradation-mode example, with KPI
+  tiles. `python scripts/generate_report.py <chem> <out.html>`.
+- 3 tests (now **354**).
+
 ## [0.30.0] - 2026-09-14
 
 Realism wave 6b — analog front-end (AFE) measurement model.
