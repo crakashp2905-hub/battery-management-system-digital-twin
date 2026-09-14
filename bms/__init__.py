@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.30.0"
+__version__ = "0.31.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -181,6 +181,7 @@ from .range_predictor import (
     VehicleParams,
     WeatherConditions,
 )
+from .report import build_health_report, save_report
 from .safety import SafetyConfig, state_of_safety
 from .sensor_fdi import SensorFDI, SensorMonitor, virtual_cell_voltage
 from .soc_estimators import (
@@ -256,4 +257,5 @@ __all__ = [
     "StationaryStorage", "peak_shaving_dispatch", "arbitrage_schedule",
     "simulate_dispatch", "optimal_storage_soc",
     "AFE", "AFEConfig",
+    "build_health_report", "save_report",
 ]
