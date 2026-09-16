@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.33.0] - 2026-09-16
+
+Delivery wave 6e — live API service + container (the final stretch item).
+
+### Added
+- **FastAPI service** (`bms/api.py`): `create_app()` exposes the twin as a live
+  endpoint backed by a stateful `TwinSync` — `POST /step` assimilates a device's
+  measured (voltage, current, temperature) and returns the SoC + model-drift
+  flag; `POST /safety` returns the State-of-Safety; plus `/state`, `/reset`,
+  `/health`, `/info`, and auto-generated OpenAPI docs at `/docs`. Kept out of
+  `bms/__init__` so the core library never requires FastAPI; install with
+  `pip install '.[api]'`.
+- **`Dockerfile`** — containerises the service
+  (`uvicorn --factory bms.api:create_app`), so `docker run -p 8000:8000 bms-twin`
+  serves the twin.
+- `api` extra (fastapi, uvicorn); `fastapi`/`httpx` added to `dev` so CI exercises
+  the API tests.
+- 6 tests (now **379**).
+
+### Completed
+This finishes the full "add everything" program (waves 1–6), including the
+FastAPI/Docker deployment wrapper.
+
 ## [0.32.0] - 2026-09-14
 
 Delivery wave 6d — CAN FD frames + UDS (ISO 14229) diagnostics.
