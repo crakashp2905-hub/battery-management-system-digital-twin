@@ -8,7 +8,7 @@ diagnostics, an EV range predictor, and a plain-language interpretability layer 
 reproducible, fully-tested framework where every module is independently usable.
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.33.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-0.34.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
   <img alt="coverage" src="https://img.shields.io/badge/coverage-90%25-brightgreen">
   <img alt="tests" src="https://img.shields.io/badge/tests-379%20passing-brightgreen">
@@ -324,13 +324,16 @@ to explain *why* it fired.
 
 ## Interactive dashboard
 
-`streamlit run app/streamlit_app.py` opens a four-mode Plotly app: **🔬 Simulation** (chemistry, SxP
+`streamlit run app/streamlit_app.py` opens a five-mode Plotly app: **🔬 Simulation** (chemistry, SxP
 topology, current/power load, fault injection; tabs for Live Signals, SoH & Aging, Battery Passport,
 Diagnostics, Fault Analysis), **🚗 Range Predictor**, **🔋 Charging & Aging**, and
 **🔌 Hardware & Agent** — self-contained demos of the CAN/DBC bus (frame table, live integrity
 monitor, downloadable `bms.dbc`), the RC pre-charge plant (interactive inrush/energy), the
 deterministic diagnostic agent (findings → gated actions), real-data calibration (estimator
-leaderboard + pulse parameter-ID), and mechanical gas/pressure sensing (pressure-leads-temperature).
+leaderboard + pulse parameter-ID), and mechanical gas/pressure sensing — and **🧪 Advanced**,
+surfacing the newer capabilities: MPC vs CC-CV charging, grid-storage peak-shaving + optimal storage
+SoC, online twin-sync drift detection, LLI/LAM degradation-mode diagnosis, the State-of-Safety index,
+the analog front-end (estimator-ranking shift), and thermal-runaway propagation.
 
 ---
 

@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.34.0] - 2026-09-16
+
+Phase-2 wave A — dashboard resync (make the new modules visible).
+
+### Changed
+- **New "🧪 Advanced" dashboard tab** (`app/streamlit_app.py`,
+  `render_advanced`) surfacing the seven capabilities added since the last
+  dashboard update, which were previously invisible to a user: **MPC vs CC-CV
+  charging**, **grid-storage** peak-shaving + optimal storage SoC, online
+  **twin-sync drift** detection, **LLI/LAM degradation-mode** diagnosis, the
+  **State-of-Safety** index, the **analog front-end** (estimator-ranking shift),
+  and **thermal-runaway propagation** — each an interactive panel. Verified
+  end-to-end in-browser (no server errors). README dashboard section updated to
+  five modes. No library code changed.
+
 ## [0.33.0] - 2026-09-16
 
 Delivery wave 6e — live API service + container (the final stretch item).
