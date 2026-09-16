@@ -2065,10 +2065,206 @@ def render_hardware_agent():
                            "temperature reaches the runaway threshold.")
 
 
+def render_advanced():
+    """Surface the newer library capabilities that don't fall out of a sim run:
+    MPC charging, grid storage, twin sync, degradation modes, State-of-Safety,
+    AFE, and thermal-runaway propagation."""
+    st.subheader("🧪 Advanced twin")
+    st.caption("Self-contained demos of the model-predictive charger, stationary "
+               "storage dispatch, online twin sync, degradation-mode diagnosis, "
+               "the State-of-Safety index, the analog front-end, and runaway "
+               "propagation.")
+    ta, tb, tc, td, te, tf, tg = st.tabs([
+        "⚡ MPC charging", "🏭 Grid storage", "🛰 Twin sync", "🔬 Degradation modes",
+        "🛡 State-of-Safety", "📟 Front-end (AFE)", "🔥 Runaway propagation"])
+
+    # ── MPC vs CC-CV charging ────────────────────────────────────────────────
+    with ta:
+        st.markdown("Model-predictive charging picks the largest current that keeps "
+                    "**voltage, temperature, and the lithium-plating limit** all "
+                    "satisfied — reaching the target faster than CC-CV.")
+        chem = st.selectbox("Chemistry", ["nmc", "lfp", "nca", "lmfp"], key="mpc_chem")
+        props = get_chemistry_props(chem)
+        d = props["default_ecm"]
+        p = bms.ECMParameters(R0=d["R0"], R1=d["R1"], C1=d["C1"], R2=d["R2"],
+                              C2=d["C2"], Q_nom_Ah=props["default_capacity_Ah"],
+                              chemistry=chem)
+        charger = bms.MPCCharger(
+            params=p, ocv_curve=bms.OCVSOC.from_chemistry(chem),
+            limits=bms.ChargeLimits(v_max=props["v_max"], t_max_C=45.0,
+                                    i_max_A=props["default_capacity_Ah"] * 3, soc_target=0.8))
+        cmp = bms.compare_charging(charger, soc0=0.2, c_rate=1.0)
+        m, c = cmp["mpc"], cmp["cccv"]
+        g = st.columns(4)
+        g[0].metric("MPC to 80%", f"{m['time_to_target_s'] / 60:.1f} min")
+        g[1].metric("CC-CV to 80%", f"{c['time_to_target_s'] / 60:.1f} min")
+        saving = 100 * cmp["time_saving_s"] / c["time_to_target_s"]
+        g[2].metric("MPC faster", f"{saving:.0f}%")
+        g[3].metric("MPC peak temp", f"{m['peak_temperature_C']:.1f}°C")
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+        fig.add_trace(go.Scatter(x=m["t_s"] / 60, y=m["soc"], name="MPC SoC",
+                                 line=dict(color=_P["indigo"], width=2.4)))
+        fig.add_trace(go.Scatter(x=c["t_s"] / 60, y=c["soc"], name="CC-CV SoC",
+                                 line=dict(color=_P["slate"], width=2, dash="dash")))
+        fig.add_trace(go.Scatter(x=m["t_s"] / 60, y=m["current_A"], name="MPC current",
+                                 line=dict(color=_P["amber"], width=1.6)), secondary_y=True)
+        fig.update_xaxes(title_text="time [min]")
+        fig.update_yaxes(title_text="SoC", secondary_y=False)
+        fig.update_yaxes(title_text="current [A]", secondary_y=True)
+        fig.update_layout(title="MPC vs CC-CV", height=320,
+                          legend=dict(orientation="h", y=1.02, x=1, xanchor="right"))
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── Grid storage ─────────────────────────────────────────────────────────
+    with tb:
+        st.markdown("A **stationary** battery serving the grid: peak-shaving a load "
+                    "profile, and the storage SoC that minimises calendar fade.")
+        thr = st.slider("Peak-shave threshold [kW]", 20, 90, 50, 5, key="gs_thr")
+        rng = np.random.default_rng(0)
+        load = np.clip(45 + 35 * np.sin(np.arange(96) * 0.25)
+                       + rng.normal(0, 8, 96), 5, None)
+        batt = bms.peak_shaving_dispatch(load, threshold_kW=float(thr))
+        store = bms.StationaryStorage(capacity_kWh=200, max_power_kW=60)
+        out = bms.simulate_dispatch(store, batt, dt_h=0.25, soc0=0.7)
+        grid = load - out["power_kW"]
+        t = np.arange(len(load)) * 0.25
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=t, y=load, name="raw load",
+                                 line=dict(color=_P["slate"], width=1.6)))
+        fig.add_trace(go.Scatter(x=t, y=grid, name="grid (shaved)",
+                                 line=dict(color=_P["emerald"], width=2.2)))
+        fig.add_hline(y=thr, line_dash="dot", line_color=_P["rose"])
+        fig.update_layout(title="Peak shaving", height=300, xaxis_title="time [h]",
+                          yaxis_title="power [kW]",
+                          legend=dict(orientation="h", y=1.02, x=1, xanchor="right"))
+        st.plotly_chart(fig, use_container_width=True)
+        gg = st.columns(3)
+        gg[0].metric("Peak load", f"{load.max():.0f} kW")
+        gg[1].metric("Peak on grid", f"{grid.max():.0f} kW")
+        gg[2].metric("Equivalent full cycles", f"{out['equivalent_full_cycles']:.2f}")
+        opt = bms.optimal_storage_soc(days=365, temperature_C=25.0)
+        st.caption(f"Optimal **storage SoC** over 1 yr @25 °C: "
+                   f"**{opt['best_soc'] * 100:.0f}%** "
+                   f"(fade {opt['fade_at_best_pct']:.2f}% vs worst "
+                   f"{opt['fade_pct'].max():.2f}%).")
+
+    # ── Twin sync ────────────────────────────────────────────────────────────
+    with tc:
+        st.markdown("**Data assimilation**: the twin corrects its SoC against a live "
+                    "device and raises a **drift** flag when its model no longer "
+                    "matches reality (e.g. the cell's resistance has grown).")
+        aged = st.checkbox("Feed an aged cell (R0 > 2×) to a fresh-model twin",
+                           key="ts_aged")
+        p_true = bms.ECMParameters(R0=0.025, R1=0.015, C1=2000, R2=0.03, C2=8000,
+                                   Q_nom_Ah=2.3)
+        plant = (bms.ECMParameters(R0=0.06, R1=0.025, C1=2000, R2=0.05, C2=8000,
+                                   Q_nom_Ah=2.1) if aged else p_true)
+        ecm = bms.SecondOrderECM(params=plant, ocv_curve=bms.OCVSOC()); ecm.reset(0.9)
+        i = np.zeros(1500); i[100:500] = 1.5; i[700:1100] = 2.0
+        v = ecm.simulate(i, 1.0)["v_terminal"] + np.random.default_rng(0).normal(0, 0.003, 1500)
+        tw = bms.TwinSync(params=p_true, ocv_curve=bms.OCVSOC()); tw.reset(0.9)
+        o = tw.run(i, v, 1.0)
+        c1, c2 = st.columns(2)
+        c1.metric("Residual RMS (under load)", f"{o['final_residual_rms_V'] * 1e3:.1f} mV")
+        c2.metric("Model drift", "⚠ DRIFTED" if o["drift"] else "✓ in sync")
+        st.plotly_chart(plotly_single(
+            pd.Series(o["residual_rms_V"] * 1e3, index=np.arange(1500)),
+            "Model-vs-measurement residual RMS", "mV",
+            color=_P["rose"] if o["drift"] else _P["emerald"]),
+            use_container_width=True)
+
+    # ── Degradation modes ────────────────────────────────────────────────────
+    with td:
+        st.markdown("Decompose fade into **loss of lithium inventory (LLI)** vs "
+                    "**loss of active material (LAM)** from the IC (dQ/dV) curve.")
+        cc = st.columns(2)
+        lli = cc[0].slider("Injected LLI", 0.0, 0.3, 0.12, 0.01, key="dm_lli")
+        lam = cc[1].slider("Injected LAM", 0.0, 0.3, 0.06, 0.01, key="dm_lam")
+        vv, fresh, ag = bms.synthetic_degraded_ic(lli=lli, lam=lam)
+        dmo = bms.diagnose_degradation_modes(vv, fresh, ag)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=vv, y=fresh, name="fresh", line=dict(color=_P["slate"])))
+        fig.add_trace(go.Scatter(x=vv, y=ag, name="aged", line=dict(color=_P["violet"], width=2.4)))
+        fig.update_layout(title="Incremental capacity (dQ/dV)", height=280,
+                          xaxis_title="voltage [V]", yaxis_title="dQ/dV",
+                          legend=dict(orientation="h", y=1.02, x=1, xanchor="right"))
+        st.plotly_chart(fig, use_container_width=True)
+        r = st.columns(3)
+        r[0].metric("Recovered LLI", f"{dmo['lli'] * 100:.1f}%")
+        r[1].metric("Recovered LAM", f"{dmo['lam'] * 100:.1f}%")
+        r[2].metric("Dominant mode", dmo["dominant_mode"])
+
+    # ── State of Safety ──────────────────────────────────────────────────────
+    with te:
+        st.markdown("One composite **0–1** safety score that fuses temperature, "
+                    "voltage, gas/pressure, SoH and imbalance — degrading before any "
+                    "single threshold trips.")
+        cc = st.columns(3)
+        t_hot = cc[0].slider("Hottest cell [°C]", 20, 90, 40, key="sos_t")
+        imb = cc[1].slider("SoC imbalance", 0.0, 0.4, 0.03, 0.01, key="sos_imb")
+        soh = cc[2].slider("SoH", 0.5, 1.0, 0.95, 0.01, key="sos_soh")
+        res = {"T_cells": np.array([25, 25, float(t_hot), 25]),
+               "v_cells": np.full(4, 3.7), "imbalance": float(imb)}
+        sos = bms.state_of_safety(res, chemistry="nmc", soh=float(soh))
+        color = {"ok": _P["emerald"], "info": _P["cyan"], "warning": _P["amber"],
+                 "critical": _P["rose"]}[sos["severity"]]
+        st.markdown(f"<div style='font-size:2.4rem;font-weight:900;color:{color}'>"
+                    f"SoS {sos['sos']:.2f}</div>"
+                    f"<div style='color:#64748b'>severity <b>{sos['severity']}</b> · "
+                    f"worst signal <b>{sos['worst_signal']}</b></div>",
+                    unsafe_allow_html=True)
+        bd = sos["breakdown"]
+        if bd:
+            st.plotly_chart(go.Figure(go.Bar(
+                x=list(bd), y=[bd[k] for k in bd], marker_color=_P["indigo"]))
+                .update_layout(title="Per-signal penalty (0=safe, 1=critical)",
+                               height=260, yaxis_range=[0, 1]),
+                use_container_width=True)
+
+    # ── AFE ──────────────────────────────────────────────────────────────────
+    with tf:
+        st.markdown("The **analog front-end** (ADC quantisation, noise, current-sensor "
+                    "offset + bandwidth) a real BMS reads through. Under a realistic "
+                    "AFE the estimator **ranking flips** — Coulomb loses its edge.")
+        d0 = bms.synthetic_drivecycle("nmc", duration_s=1800, seed=1)
+        d1 = bms.AFE(bms.AFEConfig(i_offset_A=0.05, i_bandwidth_hz=5.0, v_bits=12)
+                     ).apply_to_drivecycle(d0)
+        rows = []
+        for label, dd in [("ideal", d0), ("through AFE", d1)]:
+            b = bms.estimator_leaderboard(dd, ["coulomb", "ekf", "ukf"])
+            rows.append({"condition": label, "winner": b.index[0],
+                         **{k: round(b.loc[k, "rmse"] * 100, 2) for k in ["coulomb", "ekf", "ukf"]}})
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        st.caption("SoC RMSE %. With an ideal current the Coulomb counter is "
+                   "unbeatable; through a real AFE a voltage-feedback filter wins.")
+
+    # ── Runaway propagation ──────────────────────────────────────────────────
+    with tg:
+        st.markdown("One cell's thermal runaway heats its neighbours. With enough "
+                    "cell-to-cell coupling it **cascades**; a thermal **barrier** "
+                    "(low coupling / more spacing) arrests it.")
+        k = st.slider("Cell-to-cell coupling [W/K]", 0.05, 2.0, 1.5, 0.05, key="rp_k")
+        sim = bms.RunawayPropagation(6, bms.PropagationParams(coupling_W_per_K=float(k)))
+        out = sim.simulate(trigger_cell=0, duration_s=600, dt=0.5)
+        c1, c2 = st.columns(2)
+        c1.metric("Cells ignited", f"{out['n_ignited']} / 6")
+        c2.metric("Outcome", "🔥 propagated" if out["propagated"] else "✓ arrested")
+        hist = out["temperatures"]
+        t = np.arange(hist.shape[0]) * 0.5
+        fig = go.Figure()
+        for ci in range(6):
+            fig.add_trace(go.Scatter(x=t, y=hist[:, ci], name=f"cell {ci}",
+                                     line=dict(width=1.6)))
+        fig.update_layout(title="Per-cell temperature", height=300,
+                          xaxis_title="time [s]", yaxis_title="temperature [°C]",
+                          legend=dict(orientation="h", y=1.02, x=1, xanchor="right", font=dict(size=9)))
+        st.plotly_chart(fig, use_container_width=True)
+
+
 # ── Top-level tab bar ────────────────────────────────────────────────────────
-_sim_tab, _rp_tab, _charge_tab, _hw_tab = st.tabs(
+_sim_tab, _rp_tab, _charge_tab, _hw_tab, _adv_tab = st.tabs(
     ["🔬 Simulation", "🚗 Range Predictor", "🔋 Charging & Aging",
-     "🔌 Hardware & Agent"])
+     "🔌 Hardware & Agent", "🧪 Advanced"])
 
 with _sim_tab:
     if "bms_res" in st.session_state:
@@ -2135,3 +2331,6 @@ with _charge_tab:
 
 with _hw_tab:
     render_hardware_agent()
+
+with _adv_tab:
+    render_advanced()

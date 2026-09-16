@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.33.0"
+__version__ = "0.34.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
