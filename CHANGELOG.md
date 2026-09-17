@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.41.0] - 2026-09-17
+
+Phase-2 wave F — prepare to ship: performance benchmark, docs site, packaging.
+
+### Added
+- **Performance benchmark** (`scripts/benchmark_perf.py`) — throughput
+  (steps/sec) of the hot paths, deterministic and seeded, to catch regressions.
+  Highlights: the dependency-light **control core runs ~63 k steps/s** (≈ 1300×
+  the full supervisor), and Coulomb ≫ EKF ≈ PF > UKF, as expected.
+- **Documentation site** — `mkdocs.yml` + `docs/index.md` (Material theme);
+  `mkdocs build --strict` is clean. `docs` extra (`mkdocs`, `mkdocs-material`).
+- **`RELEASE.md`** — the publish checklist. The package **builds a valid
+  sdist + wheel** (`python -m build`) and passes `twine check`; the final PyPI
+  upload is a step the maintainer runs with their own token.
+- 5 tests (now **409**; the 3 pyproject-metadata tests use `tomllib`, so they
+  skip on Python 3.10 where it is not stdlib).
+
 ## [0.40.0] - 2026-09-17
 
 Phase-2 wave E — the firmware bridge: a portable control core + SIL.

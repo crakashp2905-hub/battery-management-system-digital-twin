@@ -31,3 +31,6 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/
+
+# mkdocs site
+site/
