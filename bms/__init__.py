@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.38.0"
+__version__ = "0.39.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -156,6 +156,7 @@ from .interpret import (
     FEATURE_NAMES,
     estimator_agreement,
     explain_charge,
+    explain_fault_prediction,
     explain_state,
     feature_importances,
     soc_report,
@@ -186,6 +187,11 @@ from .range_predictor import (
 from .reliability import monte_carlo_life, warranty_reserve
 from .report import build_health_report, save_report
 from .safety import SafetyConfig, state_of_safety
+from .second_life import (
+    SecondLifeAssessment,
+    assess_second_life,
+    levelized_cost_per_kWh,
+)
 from .sensor_fdi import SensorFDI, SensorMonitor, virtual_cell_voltage
 from .soc_estimators import (
     BiasEKFEstimator,
@@ -256,7 +262,8 @@ __all__ = [
     "twin_tools", "to_langchain_tools", "build_langgraph_agent", "traced",
     "JointEKFSoH",
     "FEATURE_NAMES", "feature_importances", "estimator_agreement", "soc_report",
-    "explain_state", "explain_charge",
+    "explain_state", "explain_charge", "explain_fault_prediction",
+    "SecondLifeAssessment", "assess_second_life", "levelized_cost_per_kWh",
     "PressureModel", "MechanicalParams", "CellMechanicalState",
     "MechanicalFaultDetector", "coulombic_efficiency",
     "DriveCycleData", "synthetic_drivecycle", "load_drivecycle_csv",

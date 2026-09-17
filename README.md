@@ -8,16 +8,16 @@ diagnostics, an EV range predictor, and a plain-language interpretability layer 
 reproducible, fully-tested framework where every module is independently usable.
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.38.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-0.39.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
   <img alt="coverage" src="https://img.shields.io/badge/coverage-90%25-brightgreen">
-  <img alt="tests" src="https://img.shields.io/badge/tests-392%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-398%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 392/392 unit tests pass • 45 library modules • 7 chemistries • ruff-clean •
+> **Status.** ✅ 398/398 unit tests pass • 46 library modules • 7 chemistries • ruff-clean •
 > CI on Python 3.10–3.13 • Streamlit dashboard + EV range predictor + executed demo notebook.
 
 ---
@@ -83,7 +83,7 @@ reproducible, fully-tested framework where every module is independently usable.
 - **Data-calibrated** — fit ECM parameters from HPPC/pulse or drive data (`fit_from_pulse`),
   learn per-cell parameter distributions instead of fixed scatter (`fit_cell_distribution`), and
   report accuracy bucketed by C-rate/temperature — kept separate for **synthetic vs real** data.
-- **Reproducible & tested** — every randomness source is seeded; 392 unit tests; pip-installable
+- **Reproducible & tested** — every randomness source is seeded; 398 unit tests; pip-installable
   with GitHub Actions CI (ruff-blocking + 90% coverage gate).
 
 ---
@@ -110,7 +110,7 @@ Each chemistry lives in `bms/chemistry.py` (`CHEMISTRY_PROPS`); request one with
 
 ```
 battery-management-system-digital-twin/
-├── bms/                       # Library (45 modules)
+├── bms/                       # Library (46 modules)
 │   ├── chemistry.py           # 7 chemistries: OCV tables, Arrhenius, limits, defaults
 │   ├── ocv_soc.py             # OCV–SOC characteristic (PCHIP interpolant, temp coefficient)
 │   ├── hysteresis.py          # Dynamic (Plett) one-state OCV hysteresis (opt-in on the ECM)
@@ -134,6 +134,7 @@ battery-management-system-digital-twin/
 │   ├── charge_control.py      # MPC/optimal fast charging (V/T/plating-limited)
 │   ├── aging.py               # Dynamic capacity fade + resistance growth; SoH feedback to pack
 │   ├── reliability.py         # Monte-Carlo fleet life + warranty curves (B10, RUL CI)
+│   ├── second_life.py         # Second-life verdict, residual value, LCOE economics
 │   ├── control.py             # Supervisor FSM + precharge (RC DC-link plant) + SoH-aware control
 │   ├── safety.py              # State-of-Safety index (fuses T/V/gas/SoH/imbalance → 0–1)
 │   ├── hv_safety.py           # Insulation monitor (IMD) + contactor weld detection
@@ -160,7 +161,7 @@ battery-management-system-digital-twin/
 ├── notebooks/                 # Executed end-to-end demo
 ├── scripts/build_notebook.py  # Reproducible notebook generator
 ├── bms.dbc                    # Shipped Vector DBC (cantools-validated, matches the encoder)
-├── tests/test_bms.py          # 392 unit tests
+├── tests/test_bms.py          # 398 unit tests
 ├── figures/                   # 12 PNGs produced by the notebook
 ├── docs/architecture.md       # Layered-design notes & invariants
 ├── docs/estimation.md         # Which model produces each quantity + SoC benchmark
@@ -344,7 +345,7 @@ the analog front-end (estimator-ranking shift), and thermal-runaway propagation.
 ## Testing
 
 ```bash
-pytest -q                                  # 392 tests, ~30 s
+pytest -q                                  # 398 tests, ~30 s
 pytest --cov=bms --cov-fail-under=85       # coverage gate (CI enforces ≥ 85%; currently 90%)
 ruff check .                               # lint — blocking in CI
 ```
