@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.34.0"
+__version__ = "0.35.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -104,6 +104,7 @@ from .degradation_modes import diagnose_degradation_modes, synthetic_degraded_ic
 from .diagnostics import compute_crate_map, simulate_eis
 from .dva import compute_dva, compute_ica, synthetic_discharge_for_dva
 from .ecm import ECMParameters, SecondOrderECM, fit_ecm_parameters
+from .eis_analysis import compute_drt, eis_resistances, eis_soh
 from .estimation import (
     Estimate,
     FunctionSocEstimator,
@@ -189,6 +190,7 @@ from .soc_estimators import (
     CoulombCounter,
     EKFEstimator,
     LSTMEstimator,
+    ParticleFilterEstimator,
     UKFEstimator,
     benchmark_estimators,
 )
@@ -208,7 +210,8 @@ __all__ = [
     "Balancer", "PassiveBalancer", "SwitchedCapacitorBalancer",
     "InductorBalancer", "compare_balancers",
     "CoulombCounter", "EKFEstimator", "UKFEstimator", "LSTMEstimator",
-    "BiasEKFEstimator", "benchmark_estimators", "RLSIdentifier",
+    "BiasEKFEstimator", "ParticleFilterEstimator", "benchmark_estimators", "RLSIdentifier",
+    "compute_drt", "eis_resistances", "eis_soh",
     "FaultMode", "FaultSpec", "FaultInjector", "HybridFaultDetector",
     "RollingFeatureBuffer", "extract_features",
     "build_fmea_table", "estimate_rul", "estimate_rul_with_resistance",

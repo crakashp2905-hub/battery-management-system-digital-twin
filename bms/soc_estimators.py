@@ -256,6 +256,91 @@ class BiasEKFEstimator:
 
 
 # ======================================================================
+# 2c. Bootstrap particle filter
+# ======================================================================
+@dataclass
+class ParticleFilterEstimator:
+    """Sequential-importance-resampling (bootstrap) particle filter for SoC.
+
+    A cloud of ``n_particles`` SoC hypotheses is propagated through the ECM,
+    weighted by the likelihood of the measured voltage, and resampled.  Unlike
+    the EKF/UKF it makes **no Gaussian assumption**, so it copes better with the
+    flat, non-linear OCV of LFP-class cells (where a Kalman linearisation is
+    weakest).  The RC over-potentials are shared (they depend only on the common
+    current), so only SoC is sampled.
+    """
+
+    params: ECMParameters
+    ocv_curve: OCVSOC = field(default_factory=OCVSOC)
+    n_particles: int = 400
+    process_std: float = 1e-3         # per-step SoC diffusion
+    R_cov: float = 1e-4               # voltage measurement variance (V²)
+    seed: int = 0
+    name: str = "pf"
+
+    def __post_init__(self) -> None:
+        self.reset(1.0)
+
+    def reset(self, soc0: float = 1.0) -> None:
+        self._rng = np.random.default_rng(self.seed)
+        self._soc = np.clip(self._rng.normal(soc0, 0.02, self.n_particles), 0.0, 1.0)
+        self._w = np.full(self.n_particles, 1.0 / self.n_particles)
+        self._vrc1 = 0.0
+        self._vrc2 = 0.0
+
+    @property
+    def soc(self) -> float:
+        return float(np.clip(np.sum(self._w * self._soc), 0.0, 1.0))
+
+    @property
+    def soc_uncertainty_1sigma(self) -> float:
+        mean = np.sum(self._w * self._soc)
+        var = np.sum(self._w * (self._soc - mean) ** 2)
+        return float(np.sqrt(max(var, 0.0)))
+
+    def update(self, current: float, voltage: float, dt: float,
+               temperature_C: float = 25.0) -> float:
+        p = self.params.at_temperature(temperature_C)
+        a1 = float(np.exp(-dt / max(p.tau1, 1e-9)))
+        a2 = float(np.exp(-dt / max(p.tau2, 1e-9)))
+        # ---- Predict (shared RC + per-particle SoC diffusion) --------
+        self._vrc1 = a1 * self._vrc1 + (1 - a1) * p.R1 * current
+        self._vrc2 = a2 * self._vrc2 + (1 - a2) * p.R2 * current
+        self._soc = self._soc - current * dt / (p.Q_nom_Ah * 3600.0)
+        self._soc = self._soc + self._rng.normal(0.0, self.process_std, self.n_particles)
+        # ---- Weight by the voltage likelihood ------------------------
+        ocv = self.ocv_curve.ocv(np.clip(self._soc, 0.0, 1.0), current, T_C=temperature_C)
+        v_pred = np.asarray(ocv, float) - self._vrc1 - self._vrc2 - p.R0 * current
+        loglik = -0.5 * (voltage - v_pred) ** 2 / self.R_cov
+        w = self._w * np.exp(loglik - loglik.max())
+        total = w.sum()
+        self._w = (w / total if total > 0 else np.full(self.n_particles, 1.0 / self.n_particles))
+        # ---- Resample when the effective sample size collapses -------
+        ess = 1.0 / np.sum(self._w ** 2)
+        if ess < self.n_particles / 2:
+            self._resample()
+        return self.soc
+
+    def _resample(self) -> None:
+        # Systematic resampling.
+        positions = (self._rng.random() + np.arange(self.n_particles)) / self.n_particles
+        idx = np.searchsorted(np.cumsum(self._w), positions)
+        idx = np.clip(idx, 0, self.n_particles - 1)
+        self._soc = self._soc[idx]
+        self._w = np.full(self.n_particles, 1.0 / self.n_particles)
+
+    def run(self, currents: np.ndarray, voltages: np.ndarray, dt: float,
+            temperatures: np.ndarray | None = None) -> np.ndarray:
+        n = len(currents)
+        T = np.full(n, 25.0) if temperatures is None else np.asarray(temperatures, float)
+        out = np.empty(n)
+        for k in range(n):
+            out[k] = self.update(float(currents[k]), float(voltages[k]), dt,
+                                 temperature_C=float(T[k]))
+        return out
+
+
+# ======================================================================
 # 3.  Unscented Kalman filter (filterpy)
 # ======================================================================
 class UKFEstimator:

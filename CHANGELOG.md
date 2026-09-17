@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.35.0] - 2026-09-17
+
+Phase-2 wave B1 — deferred estimators: particle filter + EIS/DRT analysis.
+
+### Added
+- **Particle filter** (`ParticleFilterEstimator`, registered `"pf"`): a bootstrap
+  SIR filter for SoC that makes **no Gaussian assumption**, so it copes with the
+  flat, non-linear OCV of LFP-class cells where an EKF linearisation is weakest —
+  **0.49 % vs the EKF's 1.79 % SoC RMSE on synthetic LFP** (3.7× better), and
+  competitive on NMC.
+- **EIS analysis** (`bms/eis_analysis.py`): `compute_drt` deconvolves an EIS
+  spectrum into a **Distribution of Relaxation Times** (Tikhonov-smoothed,
+  non-negative) — recovering the cell's characteristic time constants;
+  `eis_resistances` extracts the ohmic `R0` and charge-transfer `R_ct`; and
+  `eis_soh` turns their growth into an **impedance-based SoH** (a power-fade
+  signal capacity alone misses).
+- 6 tests (now **385**).
+
 ## [0.34.0] - 2026-09-16
 
 Phase-2 wave A — dashboard resync (make the new modules visible).
