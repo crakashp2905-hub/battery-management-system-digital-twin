@@ -38,6 +38,7 @@ notebook = ["jupyter>=1.0", "nbformat>=5.9", "matplotlib>=3.7"]
 dev = ["pytest>=7.4", "pytest-cov>=4.0", "ruff>=0.5", "hypothesis>=6.0",
        "fastapi>=0.110", "httpx>=0.27"]     # httpx powers FastAPI's TestClient
 api = ["fastapi>=0.110", "uvicorn>=0.27"]   # live twin service (bms.api:create_app)
+docs = ["mkdocs>=1.6", "mkdocs-material>=9.5"]   # build the documentation site
 onnx = ["onnxruntime>=1.16"]                       # framework-neutral estimators
 agent = ["langchain-core>=0.2", "langgraph>=0.2", "langfuse>=2.0"]  # LLM diagnostic agent
 can = ["cantools>=39"]                              # validate/consume the shipped bms.dbc
