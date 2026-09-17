@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.40.0] - 2026-09-17
+
+Phase-2 wave E — the firmware bridge: a portable control core + SIL.
+
+### Added
+- **`bms/control_core.py`** — the deterministic algorithms a real BMS runs each
+  control cycle, written in **plain scalar arithmetic** (only `math`, fixed-size
+  `CoreState`, a literal OCV lookup table, no dynamic allocation, no library
+  calls in the hot path) so they **transliterate to embedded C**: a 1-state SoC
+  EKF (RC as feed-forward), State-of-Power limits, and safety threshold checks as
+  a fault bitmask with a contactor-open command. `core_step(...)` is the single
+  control-cycle entry point.
+- **Software-in-the-loop** — `run_sil(...)` drives the core with the twin's plant
+  (its SIL oracle) and reports SoC tracking + raised flags. In the reference
+  bench the C-portable core tracks the twin's SoC to **~0.003 RMSE** and its
+  safety flags fire on injected over-temp / over-voltage / over-current.
+- **`docs/firmware.md`** documents the twin→firmware path and the
+  simulation-only vs firmware-portable boundary (foxBMS-style control core).
+- 6 tests (now **404**).
+
 ## [0.39.0] - 2026-09-17
 
 Phase-2 wave D2 — local fault explanations + second-life economics.
