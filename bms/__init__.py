@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.36.0"
+__version__ = "0.37.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -197,6 +197,7 @@ from .soc_estimators import (
 )
 from .soh_estimator import JointEKFSoH
 from .sop import SOPConfig, SOPLimit, StateOfPower
+from .spm import SingleParticleModel, SPMParams
 from .thermal import PIDController, PredictiveCoolingController, ThermalModel, ThermalParameters
 from .twin_sync import TwinSync
 from .uds import FAULT_TO_DTC, UDSServer
@@ -206,6 +207,7 @@ __all__ = [
     "CellChemistry", "get_chemistry_props",
     "OCVSOC",
     "SecondOrderECM", "ECMParameters", "fit_ecm_parameters",
+    "SingleParticleModel", "SPMParams",
     "BatteryPack", "PackConfig",
     "ThermalModel", "ThermalParameters", "PIDController", "PredictiveCoolingController",
     "Balancer", "PassiveBalancer", "SwitchedCapacitorBalancer",
