@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.35.0"
+__version__ = "0.36.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -151,6 +151,7 @@ from .grid_storage import (
     simulate_dispatch,
 )
 from .hv_safety import ContactorWeldDetector, InsulationMonitor
+from .hysteresis import PlettHysteresis
 from .interpret import (
     FEATURE_NAMES,
     estimator_agreement,
@@ -211,7 +212,7 @@ __all__ = [
     "InductorBalancer", "compare_balancers",
     "CoulombCounter", "EKFEstimator", "UKFEstimator", "LSTMEstimator",
     "BiasEKFEstimator", "ParticleFilterEstimator", "benchmark_estimators", "RLSIdentifier",
-    "compute_drt", "eis_resistances", "eis_soh",
+    "compute_drt", "eis_resistances", "eis_soh", "PlettHysteresis",
     "FaultMode", "FaultSpec", "FaultInjector", "HybridFaultDetector",
     "RollingFeatureBuffer", "extract_features",
     "build_fmea_table", "estimate_rul", "estimate_rul_with_resistance",

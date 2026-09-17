@@ -167,12 +167,17 @@ class SecondOrderECM:
     soc: float = 1.0
     v_rc1: float = 0.0
     v_rc2: float = 0.0
+    # Optional dynamic (Plett) hysteresis; when set it replaces the OCV curve's
+    # static ``sign(I)`` hysteresis so the two are never double-counted.
+    hysteresis: "object | None" = None
 
     # ------------------------------------------------------------------
     def reset(self, soc: float = 1.0) -> None:
         self.soc = float(np.clip(soc, 0.0, 1.0))
         self.v_rc1 = 0.0
         self.v_rc2 = 0.0
+        if self.hysteresis is not None:
+            self.hysteresis.reset(0.0)
 
     def step(self, current: float, dt: float, temperature_C: float = 25.0) -> float:
         """Advance one time-step. `current > 0` denotes discharge.
@@ -198,7 +203,12 @@ class SecondOrderECM:
             0.0, 1.0,
         ))
 
-        ocv = float(self.ocv_curve.ocv(self.soc, current, T_C=temperature_C))
+        if self.hysteresis is not None:
+            # Dynamic hysteresis: OCV without the static term, plus M·h.
+            ocv = float(self.ocv_curve.ocv(self.soc, 0.0, T_C=temperature_C))
+            ocv += self.hysteresis.update(current, dt, p.Q_nom_Ah)
+        else:
+            ocv = float(self.ocv_curve.ocv(self.soc, current, T_C=temperature_C))
         return ocv - self.v_rc1 - self.v_rc2 - p.R0 * current
 
     def simulate(self, current: np.ndarray, dt: float,
