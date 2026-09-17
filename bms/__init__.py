@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.39.0"
+__version__ = "0.40.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -80,6 +80,14 @@ from .control import (
     PrechargeCircuit,
     PrechargeContactorSequencer,
     SupervisorConfig,
+)
+from .control_core import (
+    CoreParams,
+    CoreState,
+    core_reset,
+    core_step,
+    ocv_lut,
+    run_sil,
 )
 from .data import (
     generate_aging_profile,
@@ -230,6 +238,7 @@ __all__ = [
     "to_mermaid", "thermal_runaway_tree",
     "BMSSupervisor", "BMSState", "SupervisorConfig", "ContactorState",
     "PrechargeContactorSequencer", "PrechargeCircuit",
+    "CoreParams", "CoreState", "core_reset", "core_step", "run_sil", "ocv_lut",
     "SafetyConfig", "state_of_safety",
     "InsulationMonitor", "ContactorWeldDetector",
     "SensorFDI", "SensorMonitor", "virtual_cell_voltage",
