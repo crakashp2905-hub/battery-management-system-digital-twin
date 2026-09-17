@@ -220,6 +220,15 @@ def _make_bias_ekf(*, params=None, ocv_curve=None, capacity_Ah: float = 2.3, **_
                             ocv_curve=ocv_curve or OCVSOC())
 
 
+@register_soc_estimator("pf")
+def _make_pf(*, params=None, ocv_curve=None, capacity_Ah: float = 2.3, **_):
+    from .ecm import ECMParameters
+    from .ocv_soc import OCVSOC
+    from .soc_estimators import ParticleFilterEstimator
+    return ParticleFilterEstimator(params=params or ECMParameters(Q_nom_Ah=capacity_Ah),
+                                   ocv_curve=ocv_curve or OCVSOC())
+
+
 # ======================================================================
 # Framework adapters — plug a *trained* model in as a SoC estimator
 # ======================================================================
