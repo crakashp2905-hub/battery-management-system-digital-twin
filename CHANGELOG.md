@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.37.0] - 2026-09-17
+
+Phase-2 wave C — electrochemical fidelity: a native Single Particle Model.
+
+### Added
+- **`SingleParticleModel`** (`bms/spm.py`) — a genuine (reduced) *electrochemical*
+  cell model, the one fidelity level the ECM can't reach. Each electrode is a
+  spherical particle in which lithium **diffuses** (Fick's law, conservative
+  finite-volume solver in NumPy — no PyBaMM dependency); the terminal voltage
+  comes from the **surface** stoichiometry through each electrode's OCP.
+  - Captures what an ECM cannot: under load the particle **surface depletes
+    faster than the bulk** (at 3 C the surface reaches SoC 0.31 while the bulk is
+    0.52), voltage sags with rate, and **recovers on rest** as the gradient
+    relaxes — real diffusion limitation / rate capability. Bulk SoC is conserved
+    by coulomb counting.
+- 5 tests (now **396**).
+
+### Note
+This is the SPM (the base of PyBaMM's model hierarchy), implemented natively so
+it runs and is tested in CI without a heavyweight electrochemistry dependency; a
+full DFN/PyBaMM coupling would be a separate optional extra.
+
 ## [0.36.0] - 2026-09-17
 
 Phase-2 wave B2 — dynamic (Plett) OCV hysteresis.
