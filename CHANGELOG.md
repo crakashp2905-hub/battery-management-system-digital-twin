@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.36.0] - 2026-09-17
+
+Phase-2 wave B2 — dynamic (Plett) OCV hysteresis.
+
+### Added
+- **`PlettHysteresis`** (`bms/hysteresis.py`) — a one-state dynamic hysteresis
+  model, `h[k+1] = e^(−|γ·ΔAh|)·h[k] + (1−e^(−|γ·ΔAh|))·(−sign(I))`, with the
+  hysteresis voltage `M·h`. Unlike the default *static* `M·sign(I)` term it moves
+  between the charge and discharge OCV branches **gradually** (a brief current
+  reversal does not fully flip it). **Opt-in** on `SecondOrderECM`
+  (`hysteresis=PlettHysteresis(...)`) — enabling it replaces the static term so
+  nothing is double-counted; default behaviour is unchanged.
+- 6 tests (now **391**).
+
 ## [0.35.0] - 2026-09-17
 
 Phase-2 wave B1 — deferred estimators: particle filter + EIS/DRT analysis.
