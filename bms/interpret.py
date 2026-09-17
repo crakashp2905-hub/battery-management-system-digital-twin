@@ -50,6 +50,38 @@ def feature_importances(detector) -> dict[str, float]:
     return {name: float(value) for name, value in pairs}
 
 
+def explain_fault_prediction(detector, features, baseline=None) -> dict:
+    """Per-prediction (local) attribution for *this* fault classification.
+
+    Where :func:`feature_importances` is global, this says *why the model flagged
+    this sample*: each feature's contribution is how much removing it (setting it
+    to ``baseline``, default a nominal all-zeros vector) drops the predicted
+    class probability — an occlusion attribution, dependency-free (no ``shap``).
+
+    Returns ``predicted`` (label), ``probability``, and ``contributions``
+    (feature → signed contribution, most positive first).
+    """
+    if not getattr(detector, "fitted", False):
+        raise RuntimeError("detector is not fitted; call detector.fit(X, y) first")
+    clf = detector.clf
+    x = np.asarray(features, float).reshape(1, -1)
+    base = np.zeros_like(x) if baseline is None else np.asarray(baseline, float).reshape(1, -1)
+    classes = list(clf.classes_)
+    proba = clf.predict_proba(x)[0]
+    idx = int(np.argmax(proba))
+    p0 = float(proba[idx])
+    names = FEATURE_NAMES[:x.shape[1]] + [
+        f"feature_{i}" for i in range(len(FEATURE_NAMES), x.shape[1])]
+    contribs = {}
+    for j, name in enumerate(names):
+        x_occ = x.copy()
+        x_occ[0, j] = base[0, j]
+        p_occ = float(clf.predict_proba(x_occ)[0][idx])
+        contribs[name] = p0 - p_occ                 # + = this feature raised the call
+    ordered = dict(sorted(contribs.items(), key=lambda kv: -kv[1]))
+    return {"predicted": classes[idx], "probability": p0, "contributions": ordered}
+
+
 # ======================================================================
 # Multi-estimator agreement + fusion
 # ======================================================================

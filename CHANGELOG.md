@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.39.0] - 2026-09-17
+
+Phase-2 wave D2 — local fault explanations + second-life economics.
+
+### Added
+- **`explain_fault_prediction`** (`bms/interpret.py`) — a **per-prediction**
+  (local) attribution for the fault detector, answering *why the model flagged
+  this sample* (vs the global `feature_importances`): each feature's contribution
+  is how much occluding it to a nominal baseline drops the predicted class
+  probability. Dependency-free (no `shap`). Example: an over-charge call driven
+  by `T_spread` / `v_spread` / `v_min`.
+- **Second-life economics** (`bms/second_life.py`): `assess_second_life` makes the
+  retire / **repurpose** / recycle call from SoH, with the **residual value** and
+  projected **second-life years** (from the aging model at a gentle stationary
+  duty); `levelized_cost_per_kWh` rolls a first+second-life cost of energy — a
+  second life strictly lowers it (≈ 44 % in the reference case).
+- 6 tests (now **398**).
+
 ## [0.38.0] - 2026-09-17
 
 Phase-2 wave D1 — fleet reliability / warranty curves (uncertainty quantification).
