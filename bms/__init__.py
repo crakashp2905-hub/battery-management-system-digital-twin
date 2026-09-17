@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.37.0"
+__version__ = "0.38.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -183,6 +183,7 @@ from .range_predictor import (
     VehicleParams,
     WeatherConditions,
 )
+from .reliability import monte_carlo_life, warranty_reserve
 from .report import build_health_report, save_report
 from .safety import SafetyConfig, state_of_safety
 from .sensor_fdi import SensorFDI, SensorMonitor, virtual_cell_voltage
@@ -241,6 +242,7 @@ __all__ = [
     "RangePrediction", "ROUTE_PROFILES", "VEHICLE_PRESETS",
     "INDIA_CITY_ROUTES", "INDIA_WEATHER",
     "AgingModel", "AgingParams", "AgingState",
+    "monte_carlo_life", "warranty_reserve",
     "ChargeMethod", "ChargeProtocol", "ChargeResult", "ChargingModel",
     "METHOD_POWER_KW", "compare_methods", "plating_c_limit",
     "MPCCharger", "ChargeLimits", "cccv_charge", "compare_charging",

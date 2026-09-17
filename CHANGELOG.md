@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.38.0] - 2026-09-17
+
+Phase-2 wave D1 — fleet reliability / warranty curves (uncertainty quantification).
+
+### Added
+- **`monte_carlo_life`** (`bms/reliability.py`) — Monte-Carlo SoH over a fleet
+  with a scattered (lognormal) cycle-aging rate, run through `AgingModel`.
+  Returns the **SoH band** (P5/P50/P95 per year), a **warranty curve**
+  `P(SoH < EoL)` vs year, the **RUL distribution** (mean + P5–P95 confidence
+  interval), and the **B10 life** (year 10 % of the fleet reaches EoL) — the
+  numbers a warranty desk needs, from the twin's own aging model.
+  Verified: hotter fleets reach B10 sooner (25 °C → 6.4 yr vs 42 °C → 3.8 yr) and
+  more manufacturing scatter widens the SoH band.
+- **`warranty_reserve`** — the fleet fraction expected to need replacement within
+  a given warranty term (reads the warranty curve).
+- 6 tests. Measured suite total is now **392 passing** (+1 skipped); the running
+  per-wave counts in a few earlier entries drifted slightly above the measured
+  figure — the badge is corrected to the true number here.
+
 ## [0.37.0] - 2026-09-17
 
 Phase-2 wave C — electrochemical fidelity: a native Single Particle Model.
