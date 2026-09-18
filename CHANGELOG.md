@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.45.0] - 2026-09-18
+
+Autonomous self-learning twin — **wave 3 of 4: the Counterfactual Simulator.**
+
+### Added
+- **`bms/counterfactual.py`** — the **Counterfactual Battery Twin**: forks the
+  current state and runs an alternate operating policy forward through the same
+  physics to answer *"what would have happened if…?"*.
+  - `counterfactual_charge` compares CC-CV charge policies at several C-rates on
+    the shared plant and prices each into charge time, peak temperature, plating
+    margin and — via `AgingModel` — the capacity fade and resistance growth it
+    would cost. Reference: charging a 2.3 Ah cell 0.2→0.9 SoC costs **1C: 2529 s,
+    +0.4 A plating margin, 0.006 % fade** vs **3C: 1247 s, −2.8 A margin
+    (plating), 0.018 % fade** — the speed-vs-health trade made explicit
+    (`fastest="3C"`, `gentlest="1C"`).
+  - `alternate_history` replays a real mission under a modifier (scaled current,
+    shifted temperature) and compares the degradation of the two histories —
+    "what if I had driven twice as hard?" ages the pack measurably more; "what if
+    it had run 15 °C cooler?" ages it less.
+  - `CounterfactualTwin` wraps a cell model, charger limits and aging model.
+- 6 tests (now **438**): faster charge costs more health; fastest/gentlest are
+  the expected extremes; harder driving ages more; cooler operation ages less.
+
 ## [0.44.0] - 2026-09-18
 
 Autonomous self-learning twin — **wave 2 of 4: the learning half** (decide what
