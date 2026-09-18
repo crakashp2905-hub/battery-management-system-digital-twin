@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.43.0"
+__version__ = "0.44.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -128,6 +128,15 @@ from .estimation import (
     register_soc_estimator,
     soc_estimate,
 )
+from .experiment_design import (
+    Experiment,
+    ExperimentDesign,
+    ExperimentDesigner,
+    design_next_experiment,
+    expected_information_gain,
+    experiment_library,
+    is_safe,
+)
 from .faults import (
     FaultInjector,
     FaultMode,
@@ -208,6 +217,7 @@ from .second_life import (
     assess_second_life,
     levelized_cost_per_kWh,
 )
+from .self_calibration import CalibrationResult, SelfCalibratingTwin
 from .sensor_fdi import SensorFDI, SensorMonitor, virtual_cell_voltage
 from .soc_estimators import (
     BiasEKFEstimator,
@@ -292,6 +302,9 @@ __all__ = [
     "BatteryDigitalTwin", "TwinState",
     "ObservabilityEngine", "ObservabilityReport", "analyze_observability",
     "fisher_information", "voltage_sensitivities", "DEFAULT_PARAMS",
+    "Experiment", "ExperimentDesign", "ExperimentDesigner", "design_next_experiment",
+    "expected_information_gain", "experiment_library", "is_safe",
+    "SelfCalibratingTwin", "CalibrationResult",
     "StationaryStorage", "peak_shaving_dispatch", "arbitrage_schedule",
     "simulate_dispatch", "optimal_storage_soc",
     "AFE", "AFEConfig",
