@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.43.0] - 2026-09-18
+
+Autonomous self-learning twin — **wave 1 of 4: the Observability Engine.**
+
+The goal of this program (from the strategy review) is a twin that *knows what it
+doesn't know and decides how to learn*: observability → experiment design →
+self-calibration → counterfactual. This wave lays the rigorous foundation the
+rest build on.
+
+### Added
+- **`bms/observability.py`** — the **Battery Observability Engine**. For the
+  parameter set `θ = [soc0, R0, R1, R2, Q]` it computes the voltage
+  **sensitivities** along a trajectory, forms the **Fisher Information Matrix**
+  (`FIM = SᵀS / σ²`), and reports the **Cramér–Rao lower bound** per parameter —
+  the tightest 1-σ *any* estimator could reach from that data. A resting cell
+  correctly makes `R0`/`R1`/`R2`/`Q` unidentifiable (no current → no ohmic drop;
+  no SoC movement → capacity invisible); a dynamic HPPC-like profile identifies
+  all five. Scalar optimal-design criteria (`d_opt = log det FIM`,
+  `a_opt = tr FIM⁻¹`, `e_opt = λ_min`) are exposed so the next wave's experiment
+  designer can *choose* the excitation that makes the unobservable observable.
+  `ObservabilityEngine` wraps a cell model; `analyze_observability`,
+  `fisher_information`, `voltage_sensitivities` are the free functions.
+- 6 tests (now **422**): dynamic trajectory identifies `R0`/`Q`; rest makes them
+  unobservable (infinite CRLB); larger current carries more information; lower
+  sensor noise tightens the CRLB; the report surfaces the worst-identified
+  parameter; sensitivities are zero for `R0` at rest.
+
 ## [0.42.0] - 2026-09-18
 
 The unifying layer — one authoritative, uncertainty-aware digital-twin state.
