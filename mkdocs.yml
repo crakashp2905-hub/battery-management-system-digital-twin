@@ -16,6 +16,7 @@ theme:
 nav:
   - Home: index.md
   - Architecture: architecture.md
+  - The digital twin (central state): twin.md
   - Estimation & benchmarks: estimation.md
   - Validation (real data): validation.md
   - Safety case: safety_case.md

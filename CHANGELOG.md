@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.42.0] - 2026-09-18
+
+The unifying layer — one authoritative, uncertainty-aware digital-twin state.
+
+The repository had strong estimators (SoC EKF/UKF/PF, the joint SoC+capacity EKF
+for SoH), a drift monitor (`TwinSync`), and an online resistance tracker
+(`RLSIdentifier`), but they ran as independent algorithms. `BatteryDigitalTwin`
+makes them **one continuously calibrated belief** about the cell.
+
+### Added
+- **`bms/twin.py`** — `BatteryDigitalTwin` + immutable `TwinState`. One
+  `update(voltage, current, dt, temperature_C)` drives the joint EKF (the
+  probabilistic SoC/SoH core, each with 1-σ uncertainty), `TwinSync` (the
+  model-vs-measurement residual / drift flag), and RLS (online `R0`) in
+  lock-step, and returns a snapshot with **95 % credible intervals** and a
+  JSON-ready `to_dict()`.
+- **Observability / excitation** — capacity (hence SoH) is only identifiable
+  when SoC actually moves, so the twin reports `excitation` (recent SoC swing)
+  and a `capacity_observable` flag instead of pretending SoH is always trustworthy.
+- **Twin confidence** — a scalar in `[0, 1]` (plus per-state `soc_confidence` /
+  `soh_confidence` and a breakdown) fusing data freshness, estimator
+  uncertainty, residual stability and excitation. This is the difference between
+  "SoH 82 %, confidence 0.94" and "SoH 82 %, confidence 0.41 — insufficient
+  excitation for a reliable capacity estimate".
+- **`docs/twin.md`** documents the central-state architecture and the confidence
+  model.
+- 7 tests (now **416**): matched twin is confident and observable; a mismatched
+  (aged) cell trips drift and lowers mean confidence; cold-start and rested
+  traces correctly report low confidence / unobservable capacity; credible
+  intervals bracket and clip; online `R0` is tracked.
+
 ## [0.41.0] - 2026-09-17
 
 Phase-2 wave F — prepare to ship: performance benchmark, docs site, packaging.
