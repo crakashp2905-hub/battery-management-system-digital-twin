@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.41.0"
+__version__ = "0.42.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -214,6 +214,7 @@ from .soh_estimator import JointEKFSoH
 from .sop import SOPConfig, SOPLimit, StateOfPower
 from .spm import SingleParticleModel, SPMParams
 from .thermal import PIDController, PredictiveCoolingController, ThermalModel, ThermalParameters
+from .twin import BatteryDigitalTwin, TwinState
 from .twin_sync import TwinSync
 from .uds import FAULT_TO_DTC, UDSServer
 
@@ -280,6 +281,7 @@ __all__ = [
     "nasa_mat_to_capacity", "soh_curve", "DATASET_SOURCES", "LG_COLUMN_MAP",
     "PulseFitResult", "fit_from_pulse", "fit_cell_distribution", "validation_report",
     "TwinSync",
+    "BatteryDigitalTwin", "TwinState",
     "StationaryStorage", "peak_shaving_dispatch", "arbitrage_schedule",
     "simulate_dispatch", "optimal_storage_soc",
     "AFE", "AFEConfig",
