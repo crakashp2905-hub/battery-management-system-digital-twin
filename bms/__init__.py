@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.45.0"
+__version__ = "0.46.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -43,6 +43,7 @@ from .agent import (
     twin_tools,
 )
 from .aging import AgingModel, AgingParams, AgingState
+from .autonomy import AutonomousBatteryTwin, LearningRound
 from .balancing import (
     Balancer,
     InductorBalancer,
@@ -314,6 +315,7 @@ __all__ = [
     "SelfCalibratingTwin", "CalibrationResult",
     "CounterfactualTwin", "counterfactual_charge", "alternate_history",
     "PolicyOutcome", "HistoryComparison",
+    "AutonomousBatteryTwin", "LearningRound",
     "StationaryStorage", "peak_shaving_dispatch", "arbitrage_schedule",
     "simulate_dispatch", "optimal_storage_soc",
     "AFE", "AFEConfig",
