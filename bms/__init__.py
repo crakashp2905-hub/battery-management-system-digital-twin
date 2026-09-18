@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.44.0"
+__version__ = "0.45.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -88,6 +88,13 @@ from .control_core import (
     core_step,
     ocv_lut,
     run_sil,
+)
+from .counterfactual import (
+    CounterfactualTwin,
+    HistoryComparison,
+    PolicyOutcome,
+    alternate_history,
+    counterfactual_charge,
 )
 from .data import (
     generate_aging_profile,
@@ -305,6 +312,8 @@ __all__ = [
     "Experiment", "ExperimentDesign", "ExperimentDesigner", "design_next_experiment",
     "expected_information_gain", "experiment_library", "is_safe",
     "SelfCalibratingTwin", "CalibrationResult",
+    "CounterfactualTwin", "counterfactual_charge", "alternate_history",
+    "PolicyOutcome", "HistoryComparison",
     "StationaryStorage", "peak_shaving_dispatch", "arbitrage_schedule",
     "simulate_dispatch", "optimal_storage_soc",
     "AFE", "AFEConfig",
