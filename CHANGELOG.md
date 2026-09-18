@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.44.0] - 2026-09-18
+
+Autonomous self-learning twin — **wave 2 of 4: the learning half** (decide what
+to do, then update from it).
+
+### Added
+- **`bms/experiment_design.py`** — the **Autonomous Experiment Designer**. Given
+  the twin's state it scores a library of candidate excitations (rest, CC pulses
+  at several C-rates and both signs, an HPPC sequence, a randomised ±2C
+  multipulse) by the optimal-design criteria from each candidate's Fisher
+  information — **D-optimal** (`log det FIM`, most total information) or
+  **targeted** (minimise one parameter's CRLB) — and returns the best. Every
+  candidate first passes a **safety filter** that simulates it and rejects any
+  that would leave the chemistry's voltage window or exceed a current limit, so
+  the proposal is always safe *from the current state*: at 3 % SoC every
+  discharge is rejected and a charge pulse wins. In the reference bench the rich
+  `multipulse` is correctly ranked most-informative and `rest` least.
+- **`bms/self_calibration.py`** — the **observability-gated Self-Calibrating
+  Twin**. When the model mismatches a measured trace it recalibrates — but only
+  the parameters the observability engine says the trace can actually identify;
+  the rest are reported in `skipped_unidentifiable` and left at their prior (you
+  cannot fix what you cannot see). On a dynamic trace from an aged cell it
+  recovers `R0` to 0.0551 Ω (truth 0.0550) and `Q` to 2.055 Ah (truth 2.050),
+  dropping the residual from 55 mV to 2 mV; on a pure rest it refuses to touch
+  `R0`/`R1`/`R2`/`Q` and adjusts only the identifiable `soc0`.
+- 10 tests (now **432**): designer prefers informative excitation over rest,
+  targets capacity, rejects unsafe discharges at low SoC and high-C under a
+  current limit; calibrator needs none on a match, recovers aged parameters on a
+  dynamic trace, and refuses unobservable parameters on a rest.
+
 ## [0.43.0] - 2026-09-18
 
 Autonomous self-learning twin — **wave 1 of 4: the Observability Engine.**

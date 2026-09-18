@@ -8,16 +8,16 @@ diagnostics, an EV range predictor, and a plain-language interpretability layer 
 reproducible, fully-tested framework where every module is independently usable.
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.43.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-0.44.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
   <img alt="coverage" src="https://img.shields.io/badge/coverage-90%25-brightgreen">
-  <img alt="tests" src="https://img.shields.io/badge/tests-422%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-432%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 422/422 unit tests pass • 49 library modules • 7 chemistries • ruff-clean •
+> **Status.** ✅ 432/432 unit tests pass • 51 library modules • 7 chemistries • ruff-clean •
 > CI on Python 3.10–3.13 • Streamlit dashboard + EV range predictor + executed demo notebook.
 
 ---
@@ -83,7 +83,7 @@ reproducible, fully-tested framework where every module is independently usable.
 - **Data-calibrated** — fit ECM parameters from HPPC/pulse or drive data (`fit_from_pulse`),
   learn per-cell parameter distributions instead of fixed scatter (`fit_cell_distribution`), and
   report accuracy bucketed by C-rate/temperature — kept separate for **synthetic vs real** data.
-- **Reproducible & tested** — every randomness source is seeded; 422 unit tests; pip-installable
+- **Reproducible & tested** — every randomness source is seeded; 432 unit tests; pip-installable
   with GitHub Actions CI (ruff-blocking + 90% coverage gate).
 
 ---
@@ -110,7 +110,7 @@ Each chemistry lives in `bms/chemistry.py` (`CHEMISTRY_PROPS`); request one with
 
 ```
 battery-management-system-digital-twin/
-├── bms/                       # Library (49 modules)
+├── bms/                       # Library (51 modules)
 │   ├── chemistry.py           # 7 chemistries: OCV tables, Arrhenius, limits, defaults
 │   ├── ocv_soc.py             # OCV–SOC characteristic (PCHIP interpolant, temp coefficient)
 │   ├── hysteresis.py          # Dynamic (Plett) one-state OCV hysteresis (opt-in on the ECM)
@@ -125,6 +125,8 @@ battery-management-system-digital-twin/
 │   ├── twin_sync.py           # Online data assimilation (plant tracks device + drift flag)
 │   ├── twin.py                # Central BatteryDigitalTwin: one state + uncertainty + confidence
 │   ├── observability.py       # Fisher-information / CRLB — what states are identifiable
+│   ├── experiment_design.py   # Autonomous experiment designer (D-optimal + safety-gated)
+│   ├── self_calibration.py    # Observability-gated self-recalibration to a measured trace
 │   ├── online_id.py           # RLS online R0 identification (tracks drift, no re-fit)
 │   ├── estimation.py          # Model-agnostic protocols + registry + BYO adapter + Estimate
 │   ├── faults.py              # Fault injection + hybrid rule/ML detector + feature buffer
@@ -164,7 +166,7 @@ battery-management-system-digital-twin/
 ├── notebooks/                 # Executed end-to-end demo
 ├── scripts/build_notebook.py  # Reproducible notebook generator
 ├── bms.dbc                    # Shipped Vector DBC (cantools-validated, matches the encoder)
-├── tests/test_bms.py          # 422 unit tests
+├── tests/test_bms.py          # 432 unit tests
 ├── figures/                   # 12 PNGs produced by the notebook
 ├── docs/architecture.md       # Layered-design notes & invariants
 ├── docs/estimation.md         # Which model produces each quantity + SoC benchmark
@@ -193,6 +195,8 @@ battery-management-system-digital-twin/
 | **Online SoH — joint EKF (SoC + capacity)** | `bms/soh_estimator.py` |
 | **Central digital twin — one state, uncertainty, observability, confidence** | `bms/twin.py` |
 | **Observability engine — Fisher information / CRLB identifiability** | `bms/observability.py` |
+| **Autonomous experiment designer — optimal, safety-gated excitation** | `bms/experiment_design.py` |
+| **Self-calibrating twin — observability-gated recalibration** | `bms/self_calibration.py` |
 | **Model-agnostic estimator registry + BYO + uncertainty** | `bms/estimation.py` |
 | Fault injection + hybrid (rule + ML) detection | `bms/faults.py`, `bms/_train_detector.py` |
 | **Mechanical / gas faults — pressure, swelling, venting, internal short** | `bms/mechanics.py` |
@@ -352,7 +356,7 @@ the analog front-end (estimator-ranking shift), and thermal-runaway propagation.
 ## Testing
 
 ```bash
-pytest -q                                  # 422 tests, ~30 s
+pytest -q                                  # 432 tests, ~30 s
 pytest --cov=bms --cov-fail-under=85       # coverage gate (CI enforces ≥ 85%; currently 90%)
 ruff check .                               # lint — blocking in CI
 ```
