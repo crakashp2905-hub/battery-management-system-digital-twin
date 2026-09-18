@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.42.0"
+__version__ = "0.43.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -176,6 +176,14 @@ from .mechanics import (
     PressureModel,
     coulombic_efficiency,
 )
+from .observability import (
+    DEFAULT_PARAMS,
+    ObservabilityEngine,
+    ObservabilityReport,
+    analyze_observability,
+    fisher_information,
+    voltage_sensitivities,
+)
 from .ocv_soc import OCVSOC
 from .online_id import RLSIdentifier
 from .pack import BatteryPack, PackConfig
@@ -282,6 +290,8 @@ __all__ = [
     "PulseFitResult", "fit_from_pulse", "fit_cell_distribution", "validation_report",
     "TwinSync",
     "BatteryDigitalTwin", "TwinState",
+    "ObservabilityEngine", "ObservabilityReport", "analyze_observability",
+    "fisher_information", "voltage_sensitivities", "DEFAULT_PARAMS",
     "StationaryStorage", "peak_shaving_dispatch", "arbitrage_schedule",
     "simulate_dispatch", "optimal_storage_soc",
     "AFE", "AFEConfig",
