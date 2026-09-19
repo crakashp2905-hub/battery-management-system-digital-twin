@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.47.0] - 2026-09-19
+
+High-novelty follow-ups — **1 of 2: Degradation-Mode Inference** (why a cell
+ages, not just how much).
+
+### Added
+- **`bms/degradation_inference.py`** — turns the LLI/LAM incremental-capacity
+  split (`degradation_modes.py`) into a full diagnosis. `infer_degradation_modes`
+  fuses **LLI / LAM** capacity fade with **resistance growth** (`R0` now vs BOL)
+  into one normalised attribution — e.g. *"SoH 72 %: LLI 37 %, LAM 13 %,
+  resistance 50 %"* — and `infer_mechanisms` reasons from an `OperatingHistory`
+  (mean SoC, temperature, calendar time, cycles, fast/cold-charge events) to the
+  **likely physical mechanism**: calendar/SEI growth at high SoC, high-temperature
+  cycling, lithium plating from cold/fast charging, or high-rate stress — scored
+  deterministically and boosted for consistency with the observed dominant mode.
+  Rule-based and fully explainable (physics in code, not an LLM). `narrative`
+  gives the one-line verdict; `DegradationInference` wraps the BOL reference.
+  Falls back to a capacity-vs-resistance two-mode split when no IC curve is given.
+- 7 tests (now **452**): LLI-dominant IC → LLI largest; resistance growth its own
+  mode; two-mode fallback; calendar/high-SoC history → SEI; cold/fast charging →
+  plating; high-rate history → rate stress; wrapper + serialisation.
+
 ## [0.46.0] - 2026-09-18
 
 Autonomous self-learning twin — **wave 4 of 4: the closed loop (capstone).**
