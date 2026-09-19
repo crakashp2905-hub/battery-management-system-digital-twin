@@ -8,16 +8,16 @@ diagnostics, an EV range predictor, and a plain-language interpretability layer 
 reproducible, fully-tested framework where every module is independently usable.
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.47.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-0.48.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
   <img alt="coverage" src="https://img.shields.io/badge/coverage-90%25-brightgreen">
-  <img alt="tests" src="https://img.shields.io/badge/tests-452%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-458%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 452/452 unit tests pass • 54 library modules • 7 chemistries • ruff-clean •
+> **Status.** ✅ 458/458 unit tests pass • 55 library modules • 7 chemistries • ruff-clean •
 > CI on Python 3.10–3.13 • Streamlit dashboard + EV range predictor + executed demo notebook.
 
 ---
@@ -83,7 +83,7 @@ reproducible, fully-tested framework where every module is independently usable.
 - **Data-calibrated** — fit ECM parameters from HPPC/pulse or drive data (`fit_from_pulse`),
   learn per-cell parameter distributions instead of fixed scatter (`fit_cell_distribution`), and
   report accuracy bucketed by C-rate/temperature — kept separate for **synthetic vs real** data.
-- **Reproducible & tested** — every randomness source is seeded; 452 unit tests; pip-installable
+- **Reproducible & tested** — every randomness source is seeded; 458 unit tests; pip-installable
   with GitHub Actions CI (ruff-blocking + 90% coverage gate).
 
 ---
@@ -110,7 +110,7 @@ Each chemistry lives in `bms/chemistry.py` (`CHEMISTRY_PROPS`); request one with
 
 ```
 battery-management-system-digital-twin/
-├── bms/                       # Library (54 modules)
+├── bms/                       # Library (55 modules)
 │   ├── chemistry.py           # 7 chemistries: OCV tables, Arrhenius, limits, defaults
 │   ├── ocv_soc.py             # OCV–SOC characteristic (PCHIP interpolant, temp coefficient)
 │   ├── hysteresis.py          # Dynamic (Plett) one-state OCV hysteresis (opt-in on the ECM)
@@ -154,6 +154,7 @@ battery-management-system-digital-twin/
 │   ├── dva.py                 # Differential & incremental capacity analysis (dV/dQ, dQ/dV)
 │   ├── degradation_modes.py   # LLI vs LAM diagnosis from IC (dQ/dV) curves
 │   ├── degradation_inference.py # LLI/LAM/resistance attribution + root-cause mechanism
+│   ├── digital_thread.py      # Manufacturing formation/grading → field degradation forecast
 │   ├── diagnostics.py         # EIS (Nyquist) simulation + C-rate capability map
 │   ├── eis_analysis.py        # DRT deconvolution + impedance-based SoH from EIS
 │   ├── range_predictor.py     # Physics-based EV range predictor (weather/traffic/road coupling)
@@ -169,7 +170,7 @@ battery-management-system-digital-twin/
 ├── notebooks/                 # Executed end-to-end demo
 ├── scripts/build_notebook.py  # Reproducible notebook generator
 ├── bms.dbc                    # Shipped Vector DBC (cantools-validated, matches the encoder)
-├── tests/test_bms.py          # 452 unit tests
+├── tests/test_bms.py          # 458 unit tests
 ├── figures/                   # 12 PNGs produced by the notebook
 ├── docs/architecture.md       # Layered-design notes & invariants
 ├── docs/estimation.md         # Which model produces each quantity + SoC benchmark
@@ -203,6 +204,7 @@ battery-management-system-digital-twin/
 | **Counterfactual twin — what-if policy + degradation simulation** | `bms/counterfactual.py` |
 | **Autonomous learning loop — observe → design → excite → self-calibrate** | `bms/autonomy.py` |
 | **Degradation-mode inference — LLI/LAM/resistance + root-cause mechanism** | `bms/degradation_inference.py` |
+| **Manufacturing → field digital thread — birth data predicts field life** | `bms/digital_thread.py` |
 | **Model-agnostic estimator registry + BYO + uncertainty** | `bms/estimation.py` |
 | Fault injection + hybrid (rule + ML) detection | `bms/faults.py`, `bms/_train_detector.py` |
 | **Mechanical / gas faults — pressure, swelling, venting, internal short** | `bms/mechanics.py` |
@@ -362,7 +364,7 @@ the analog front-end (estimator-ranking shift), and thermal-runaway propagation.
 ## Testing
 
 ```bash
-pytest -q                                  # 452 tests, ~30 s
+pytest -q                                  # 458 tests, ~30 s
 pytest --cov=bms --cov-fail-under=85       # coverage gate (CI enforces ≥ 85%; currently 90%)
 ruff check .                               # lint — blocking in CI
 ```

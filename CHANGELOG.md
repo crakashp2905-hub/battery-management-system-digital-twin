@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.48.0] - 2026-09-19
+
+High-novelty follow-ups — **2 of 2: Manufacturing → Field Digital Thread.**
+This completes the review's ⭐⭐⭐⭐⭐ list (the other seven shipped in 0.42–0.47).
+
+### Added
+- **`bms/digital_thread.py`** — threads a cell's factory **birth certificate**
+  (`ManufacturingRecord`: formation coulombic efficiency, capacity grade,
+  end-of-line `R0`, self-discharge grade) forward into a **predicted field
+  degradation trajectory**, so early-failure cells can be flagged *before*
+  deployment. `link_formation_to_aging` maps the metrics to physically-motivated
+  aging-rate multipliers (low formation efficiency → faster LLI/capacity fade;
+  high end-of-line `R0` → faster resistance growth); `project_field_trajectory`
+  turns a record + `FieldUsage` into cycles/days-to-EOL. Reference: a well-formed
+  cell (CE 0.93) projects **2058 cycles** to EOL vs a poorly-formed one
+  (CE 0.85, high `R0`, low grade) at **1258** — the factory data forecasts a
+  ~40 % shorter life. `DigitalThread` ranks a batch by field risk and reports its
+  life distribution (**B10**, worst cell), linking the factory to
+  `bms.reliability`; `formation_life_correlation` shows formation efficiency
+  predicts life (r > 0.8).
+- 6 tests (now **458**): poor formation raises the multipliers and shortens life;
+  the batch rank surfaces the worst cell first; the life distribution reports B10;
+  formation efficiency positively correlates with projected life; records/
+  projections serialise.
+
 ## [0.47.0] - 2026-09-19
 
 High-novelty follow-ups — **1 of 2: Degradation-Mode Inference** (why a cell

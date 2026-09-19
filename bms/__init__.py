@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.47.0"
+__version__ = "0.48.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -125,6 +125,15 @@ from .degradation_inference import (
 )
 from .degradation_modes import diagnose_degradation_modes, synthetic_degraded_ic
 from .diagnostics import compute_crate_map, simulate_eis
+from .digital_thread import (
+    DigitalThread,
+    FieldProjection,
+    FieldUsage,
+    FormationCoupling,
+    ManufacturingRecord,
+    link_formation_to_aging,
+    project_field_trajectory,
+)
 from .dva import compute_dva, compute_ica, synthetic_discharge_for_dva
 from .ecm import ECMParameters, SecondOrderECM, fit_ecm_parameters
 from .eis_analysis import compute_drt, eis_resistances, eis_soh
@@ -289,6 +298,8 @@ __all__ = [
     "diagnose_degradation_modes", "synthetic_degraded_ic",
     "infer_degradation_modes", "infer_mechanisms", "DegradationDiagnosis",
     "DegradationInference", "OperatingHistory",
+    "ManufacturingRecord", "FieldUsage", "FieldProjection", "FormationCoupling",
+    "DigitalThread", "link_formation_to_aging", "project_field_trajectory",
     "RangePredictor", "VehicleParams", "RouteSegment", "WeatherConditions",
     "RangePrediction", "ROUTE_PROFILES", "VEHICLE_PRESETS",
     "INDIA_CITY_ROUTES", "INDIA_WEATHER",
