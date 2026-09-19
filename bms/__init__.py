@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.48.0"
+__version__ = "0.49.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -169,6 +169,7 @@ from .faults import (
     RollingFeatureBuffer,
     extract_features,
 )
+from .fleet import FleetInsight, FleetTwin, VehicleState
 from .fmea import (
     FMEA_TEST_LINKS,
     build_fmea_table,
@@ -220,6 +221,7 @@ from .observability import (
 from .ocv_soc import OCVSOC
 from .online_id import RLSIdentifier
 from .pack import BatteryPack, PackConfig
+from .pack_twin import CellState, PackTwin, PackTwinState
 from .passport import BatteryPassport
 from .propagation import PropagationParams, RunawayPropagation, propagation_arrested_below
 from .range_predictor import (
@@ -336,6 +338,8 @@ __all__ = [
     "CounterfactualTwin", "counterfactual_charge", "alternate_history",
     "PolicyOutcome", "HistoryComparison",
     "AutonomousBatteryTwin", "LearningRound",
+    "PackTwin", "PackTwinState", "CellState",
+    "FleetTwin", "VehicleState", "FleetInsight",
     "StationaryStorage", "peak_shaving_dispatch", "arbitrage_schedule",
     "simulate_dispatch", "optimal_storage_soc",
     "AFE", "AFEConfig",
