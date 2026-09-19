@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.52.0] - 2026-09-19
+
+Moderate-novelty tier — **replay engine + knowledge graph** (completes the tier).
+
+### Added
+- **`bms/replay.py`** — `ReplayEngine` stores a `DriveTrace` once and **replays**
+  it through any number of twin configurations (SoC estimators, etc.), scoring
+  each with the same metrics (SoC RMSE, final-SoC error, runtime) so versions
+  compare apples to apples. `compare({...})` returns a ranked leaderboard — the
+  reproducible A/B bench a twin needs before shipping a change.
+- **`bms/knowledge_graph.py`** — `BatteryKnowledgeGraph`, a typed directed graph
+  of the system (`Battery → Module → Cell → Sensor`, plus `Fault`/`Degradation`
+  events) with named relations, so a diagnosis can ask structured questions —
+  *"which cells contributed to fault 42?"* (`contributors_to`), *"what module is
+  cell 17 in?"* (`ancestors`), *"what sensors are on this cell?"* (`neighbors`).
+  Dependency-light (adjacency list, no networkx); renders to Mermaid;
+  `build_pack_graph` seeds the Battery→Module→Cell hierarchy from a `BatteryPack`.
+- 9 tests (now **491**): replay scores a config and returns a reproducible ranked
+  leaderboard, runs without ground truth; graph typed queries, contributor/
+  ancestry traversal, bad-edge rejection, Mermaid/summary, pack-graph hierarchy.
+
+**This completes the moderate-novelty (🟠) tier** (the already-present items —
+virtual sensors, sensor FDI, second-life, living passport — plus these new ones:
+cell-level pack twin, fleet twins, probabilistic prognostics, physics+ML hybrid,
+replay engine, knowledge graph).
+
 ## [0.51.0] - 2026-09-19
 
 Moderate-novelty tier — **3 of 3: physics + ML hybrid model** (learn only the
