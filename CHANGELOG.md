@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.50.0] - 2026-09-19
+
+Moderate-novelty tier — **2 of 3: probabilistic prognostics** (probabilities and
+lead time, not thresholds).
+
+### Added
+- **`bms/prognostics.py`** — three probabilistic read-outs:
+  - `thermal_runaway_probability` — `P(runaway < t)` over horizons (30 s / 5 min /
+    30 min) from temperature and its trend, with an **uncertain onset** (Gaussian
+    crossing model) that imbalance and over-pressure lower (a stressed cell lets
+    go sooner). Replaces the deterministic threshold with a probability curve.
+  - `rul_distribution` — remaining useful life as a **distribution** (mean, median,
+    5–95 % interval) by propagating the uncertainty in the observed fade rate, so
+    "600 cycles" becomes "≈495 cycles (322–765)".
+  - `predict_failure` — precursor-fusion failure probability (logistic of weighted
+    early-warning evidence: pressure rise, resistance jump, voltage divergence,
+    temperature spread, gas) with an estimated **lead time** that shortens as the
+    dominant precursor's severity rises.
+- 9 tests (now **478**): runaway probability monotone in horizon, low when
+  cooling, raised by imbalance/pressure; RUL interval brackets the point estimate
+  and widens with fade uncertainty, zero at EOL; more/stronger precursors raise
+  failure probability and shorten lead time.
+
 ## [0.49.0] - 2026-09-19
 
 Moderate-novelty tier — **1 of 3: scaling the twin (cell-level pack + fleet).**

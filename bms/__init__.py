@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.49.0"
+__version__ = "0.50.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -223,6 +223,14 @@ from .online_id import RLSIdentifier
 from .pack import BatteryPack, PackConfig
 from .pack_twin import CellState, PackTwin, PackTwinState
 from .passport import BatteryPassport
+from .prognostics import (
+    FailurePrediction,
+    RULDistribution,
+    RunawayForecast,
+    predict_failure,
+    rul_distribution,
+    thermal_runaway_probability,
+)
 from .propagation import PropagationParams, RunawayPropagation, propagation_arrested_below
 from .range_predictor import (
     INDIA_CITY_ROUTES,
@@ -340,6 +348,8 @@ __all__ = [
     "AutonomousBatteryTwin", "LearningRound",
     "PackTwin", "PackTwinState", "CellState",
     "FleetTwin", "VehicleState", "FleetInsight",
+    "thermal_runaway_probability", "RunawayForecast", "rul_distribution",
+    "RULDistribution", "predict_failure", "FailurePrediction",
     "StationaryStorage", "peak_shaving_dispatch", "arbitrage_schedule",
     "simulate_dispatch", "optimal_storage_soc",
     "AFE", "AFEConfig",
