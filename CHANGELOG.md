@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.49.0] - 2026-09-19
+
+Moderate-novelty tier — **1 of 3: scaling the twin (cell-level pack + fleet).**
+
+### Added
+- **`bms/pack_twin.py`** — `PackTwin` maintains a state **per individual cell**
+  across the series/parallel stack and surfaces the two cells that matter: the
+  **limiting cell** (lowest SoC — bounds usable capacity now) and the **weakest
+  cell** (lowest capacity — the most-aged link driving pack EOL), with per-cell
+  SoH/R0/voltage and deviation-from-mean. So a diagnosis can say *"cell 17 is the
+  limiting cell"* instead of *"pack SoH = 82 %"*; `pack_soh` is the weakest link,
+  not the average.
+- **`bms/fleet.py`** — `FleetTwin` aggregates per-vehicle `VehicleState` roll-ups
+  into a `FleetInsight`: population SoH stats (mean/spread/**bottom-decile**), an
+  **at-risk list** (low SoH outliers, below-floor, or top-decile per-cycle fade),
+  the fastest degraders, and a fast/normal/slow degradation **clustering** — the
+  fleet-analytics layer that pairs with `digital_thread` and `reliability`.
+- 11 tests (now **469**): per-cell coverage; limiting = lowest SoC; weakest =
+  lowest capacity; imbalance/deviation consistency; fleet flags a low outlier;
+  fastest degrader ranked first; clusters label every vehicle; empty fleet safe.
+
 ## [0.48.0] - 2026-09-19
 
 High-novelty follow-ups — **2 of 2: Manufacturing → Field Digital Thread.**
