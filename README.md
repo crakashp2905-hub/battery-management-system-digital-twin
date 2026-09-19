@@ -8,16 +8,16 @@ diagnostics, an EV range predictor, and a plain-language interpretability layer 
 reproducible, fully-tested framework where every module is independently usable.
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.53.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-0.54.0-blue">
   <img alt="CI" src="https://github.com/crakashp2905-hub/battery-management-system-digital-twin/actions/workflows/ci.yml/badge.svg">
   <img alt="coverage" src="https://img.shields.io/badge/coverage-90%25-brightgreen">
-  <img alt="tests" src="https://img.shields.io/badge/tests-495%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-507%20passing-brightgreen">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%E2%80%933.13-blue">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="dashboard" src="https://img.shields.io/badge/dashboard-Streamlit-ff4b4b">
 </p>
 
-> **Status.** ✅ 495/495 unit tests pass • 61 library modules • 7 chemistries • ruff-clean •
+> **Status.** ✅ 507/507 unit tests pass • 63 library modules • 7 chemistries • ruff-clean •
 > CI on Python 3.10–3.13 • Streamlit dashboard + EV range predictor + executed demo notebook.
 
 ---
@@ -87,7 +87,7 @@ reproducible, fully-tested framework where every module is independently usable.
   the box: coulomb-counting hits **0.64% SoC RMSE** on a real B0005 discharge, and real capacity
   fade is recovered across four cells (`scripts/validate_nasa.py`, `docs/validation.md`; a ~20 KB
   real fixture is committed so CI exercises it too).
-- **Reproducible & tested** — every randomness source is seeded; 495 unit tests; pip-installable
+- **Reproducible & tested** — every randomness source is seeded; 507 unit tests; pip-installable
   with GitHub Actions CI (ruff-blocking + 90% coverage gate).
 
 ---
@@ -114,11 +114,13 @@ Each chemistry lives in `bms/chemistry.py` (`CHEMISTRY_PROPS`); request one with
 
 ```
 battery-management-system-digital-twin/
-├── bms/                       # Library (61 modules)
+├── bms/                       # Library (63 modules)
 │   ├── chemistry.py           # 7 chemistries: OCV tables, Arrhenius, limits, defaults
 │   ├── ocv_soc.py             # OCV–SOC characteristic (PCHIP interpolant, temp coefficient)
 │   ├── hysteresis.py          # Dynamic (Plett) one-state OCV hysteresis (opt-in on the ECM)
 │   ├── ecm.py                 # 2-RC equivalent-circuit model, Arrhenius scaling, parameter ID
+│   ├── autocal.py             # Universal auto-calibration: pick best OCV template + fit ECM
+│   ├── signal.py              # Signal conditioning: Hampel despike, Savitzky-Golay, median, EWMA
 │   ├── spm.py                 # Single Particle Model — electrochemical solid-diffusion cell
 │   ├── hybrid_model.py        # Physics+ML hybrid: ECM + learned voltage residual (f_theta)
 │   ├── pack.py                # Series × parallel pack, scatter, shared-node parallel currents
@@ -178,7 +180,7 @@ battery-management-system-digital-twin/
 ├── notebooks/                 # Executed end-to-end demo
 ├── scripts/build_notebook.py  # Reproducible notebook generator
 ├── bms.dbc                    # Shipped Vector DBC (cantools-validated, matches the encoder)
-├── tests/test_bms.py          # 495 unit tests
+├── tests/test_bms.py          # 507 unit tests
 ├── figures/                   # 12 PNGs produced by the notebook
 ├── docs/architecture.md       # Layered-design notes & invariants
 ├── docs/estimation.md         # Which model produces each quantity + SoC benchmark
@@ -216,6 +218,8 @@ battery-management-system-digital-twin/
 | **Cell-level pack twin — per-cell state, limiting/weakest cell** | `bms/pack_twin.py` |
 | **Fleet twins — population health, at-risk ranking, clustering** | `bms/fleet.py` |
 | **Probabilistic prognostics — runaway P(t), RUL distribution, failure lead time** | `bms/prognostics.py` |
+| **Universal auto-calibration — identify any cell (OCV template + ECM fit)** | `bms/autocal.py` |
+| **Signal conditioning — Hampel/Savitzky-Golay/median despike & smooth** | `bms/signal.py` |
 | **Physics + ML hybrid — ECM plus a learned voltage residual** | `bms/hybrid_model.py` |
 | **Replay engine — A/B twin configs on a stored trace** | `bms/replay.py` |
 | **Battery knowledge graph — structured, queryable part/event history** | `bms/knowledge_graph.py` |
@@ -378,7 +382,7 @@ the analog front-end (estimator-ranking shift), and thermal-runaway propagation.
 ## Testing
 
 ```bash
-pytest -q                                  # 495 tests, ~30 s
+pytest -q                                  # 507 tests, ~30 s
 pytest --cov=bms --cov-fail-under=85       # coverage gate (CI enforces ≥ 85%; currently 90%)
 ruff check .                               # lint — blocking in CI
 ```

@@ -19,6 +19,7 @@ nav:
   - The digital twin (central state): twin.md
   - Autonomous learning loop: autonomy.md
   - Estimation & benchmarks: estimation.md
+  - Auto-calibration & cleaning: calibration.md
   - Validation (real data): validation.md
   - Safety case: safety_case.md
   - Firmware & SIL: firmware.md

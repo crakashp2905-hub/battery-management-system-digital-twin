@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.53.0"
+__version__ = "0.54.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -43,6 +43,7 @@ from .agent import (
     twin_tools,
 )
 from .aging import AgingModel, AgingParams, AgingState
+from .autocal import CalibratedCell, auto_calibrate, estimate_capacity
 from .autonomy import AutonomousBatteryTwin, LearningRound
 from .balancing import (
     Balancer,
@@ -256,6 +257,15 @@ from .second_life import (
 )
 from .self_calibration import CalibrationResult, SelfCalibratingTwin
 from .sensor_fdi import SensorFDI, SensorMonitor, virtual_cell_voltage
+from .signal import (
+    CleanResult,
+    clean_signal,
+    ewma,
+    hampel,
+    median_filter,
+    moving_average,
+    savitzky_golay,
+)
 from .soc_estimators import (
     BiasEKFEstimator,
     CoulombCounter,
@@ -356,6 +366,9 @@ __all__ = [
     "HybridResidualModel",
     "DriveTrace", "ReplayEngine", "ReplayResult",
     "BatteryKnowledgeGraph", "build_pack_graph",
+    "auto_calibrate", "CalibratedCell", "estimate_capacity",
+    "hampel", "median_filter", "savitzky_golay", "ewma", "moving_average",
+    "clean_signal", "CleanResult",
     "StationaryStorage", "peak_shaving_dispatch", "arbitrage_schedule",
     "simulate_dispatch", "optimal_storage_soc",
     "AFE", "AFEConfig",

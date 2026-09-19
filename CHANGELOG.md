@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.54.0] - 2026-09-19
+
+**Universal auto-calibration — accurate on any cell, any chemistry.** The NASA
+validation showed a generic model is only so accurate on a specific cell; the fix
+is to calibrate to the cell automatically. (Deliberately *not* 100 thin algorithm
+wrappers — the genuinely useful subset, wired into one pipeline that works.)
+
+### Added
+- **`bms/autocal.py`** — `auto_calibrate(current, voltage, dt)` identifies a
+  calibrated cell model from a raw trace of **unknown chemistry**: estimates
+  capacity, then tries every shipped OCV template, fits the ECM
+  `(R0, R1, C1, R2, C2)` by nonlinear least squares (Levenberg-Marquardt) for
+  each, and picks the lowest-residual template. Returns a `CalibratedCell` that
+  spins up any estimator ready-tuned (`cal.make_estimator("ekf")`). Matching to
+  the closest well-behaved template + fitting side-steps the ill-posed direct
+  OCV inversion (which fails by ~60 % SoC in testing). **Validated on real NASA
+  data:** with no chemistry hint it auto-selects NCA/NMC and drops the EKF from
+  the naive ~12.5 % to **3.7 %** SoC RMSE (≈1.5 % on held-out cycles).
+- **`bms/signal.py`** — robust signal conditioning for raw BMS data: `hampel`
+  (median/MAD despiking), `median_filter`, `savitzky_golay` (peak-preserving
+  smoothing, safe before DVA/ICA), `ewma`, `moving_average`, and a `clean_signal`
+  pipeline (Hampel despike → gentle SG) reporting how many spikes it removed.
+- **`docs/calibration.md`** (in the mkdocs nav) documents both, with the real-data
+  numbers and an honest note on remaining OCV-template error.
+- 12 tests (now **507**): auto-cal identifies the right template, reconstructs
+  voltage, tracks SoC, estimates capacity, and — on the committed **real** NASA
+  fixture — beats the naive estimator (<5 %); signal cleaners despike, smooth
+  without distorting shape, and preserve clean signals.
+
 ## [0.53.0] - 2026-09-19
 
 **Validated against real data — NASA PCoE (public domain).** The twin's accuracy
