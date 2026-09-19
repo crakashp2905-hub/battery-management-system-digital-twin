@@ -17,6 +17,7 @@ nav:
   - Home: index.md
   - Architecture: architecture.md
   - The digital twin (central state): twin.md
+  - Uncertainty calibration: uncertainty.md
   - Autonomous learning loop: autonomy.md
   - Estimation & benchmarks: estimation.md
   - Auto-calibration & cleaning: calibration.md
