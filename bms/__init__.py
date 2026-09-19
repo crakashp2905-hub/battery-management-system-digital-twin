@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.51.0"
+__version__ = "0.52.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -204,6 +204,7 @@ from .interpret import (
     feature_importances,
     soc_report,
 )
+from .knowledge_graph import BatteryKnowledgeGraph, build_pack_graph
 from .mechanics import (
     CellMechanicalState,
     MechanicalFaultDetector,
@@ -245,6 +246,7 @@ from .range_predictor import (
     WeatherConditions,
 )
 from .reliability import monte_carlo_life, warranty_reserve
+from .replay import DriveTrace, ReplayEngine, ReplayResult
 from .report import build_health_report, save_report
 from .safety import SafetyConfig, state_of_safety
 from .second_life import (
@@ -352,6 +354,8 @@ __all__ = [
     "thermal_runaway_probability", "RunawayForecast", "rul_distribution",
     "RULDistribution", "predict_failure", "FailurePrediction",
     "HybridResidualModel",
+    "DriveTrace", "ReplayEngine", "ReplayResult",
+    "BatteryKnowledgeGraph", "build_pack_graph",
     "StationaryStorage", "peak_shaving_dispatch", "arbitrage_schedule",
     "simulate_dispatch", "optimal_storage_soc",
     "AFE", "AFEConfig",
