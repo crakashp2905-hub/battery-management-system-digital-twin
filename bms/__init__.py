@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.55.0"
+__version__ = "0.56.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -282,6 +282,17 @@ from .thermal import PIDController, PredictiveCoolingController, ThermalModel, T
 from .twin import BatteryDigitalTwin, TwinState
 from .twin_sync import TwinSync
 from .uds import FAULT_TO_DTC, UDSServer
+from .uncertainty import (
+    CalibrationReport,
+    assess_calibration,
+    calibration_scale,
+    coverage,
+    expected_calibration_error,
+    mpiw,
+    picp,
+    reliability_curve,
+    sharpness,
+)
 from .unified_twin import UnifiedTwin, UnifiedTwinState
 
 __all__ = [
@@ -353,6 +364,9 @@ __all__ = [
     "TwinSync",
     "BatteryDigitalTwin", "TwinState",
     "UnifiedTwin", "UnifiedTwinState",
+    "coverage", "picp", "mpiw", "sharpness", "reliability_curve",
+    "expected_calibration_error", "assess_calibration", "CalibrationReport",
+    "calibration_scale",
     "ObservabilityEngine", "ObservabilityReport", "analyze_observability",
     "fisher_information", "voltage_sensitivities", "DEFAULT_PARAMS",
     "Experiment", "ExperimentDesign", "ExperimentDesigner", "design_next_experiment",

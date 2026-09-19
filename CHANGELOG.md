@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.56.0] - 2026-09-19
+
+Platform roadmap — **Tier 1, #3: make uncertainty scientifically valid.**
+
+### Added
+- **`bms/uncertainty.py`** — the probabilistic-forecast metrics that *validate*
+  the twin's intervals instead of asserting them: `coverage`, `picp` / `mpiw`,
+  `reliability_curve` (observed vs nominal coverage), `expected_calibration_error`,
+  `sharpness`, `assess_calibration` (a calibrated / overconfident / underconfident
+  verdict from the signed miscalibration over the whole reliability curve), and
+  `calibration_scale` (the σ-correction that makes an interval nominal — measure,
+  then fix).
+- **Honest finding**, documented in `docs/uncertainty.md` (in the mkdocs nav):
+  applied to the twin's own SoC intervals against synthetic ground truth, the
+  reported σ (≈ 0.012) is ~20× the actual error RMSE (≈ 0.0006) — coverage is
+  1.00, not 0.95, so the joint-EKF covariance is **underconfident** (over-cautious).
+  Surfaced, not hidden; `calibration_scale` returns the correction.
+- 7 tests (now **519**): well-calibrated Gaussians cover at nominal with low ECE;
+  overconfident σ under-covers and is flagged; underconfident σ over-covers and is
+  flagged; the reliability curve is monotone and bracketed; PICP/sharpness
+  trade-off; `calibration_scale` restores nominal coverage in both directions.
+
 ## [0.55.0] - 2026-09-19
 
 Platform roadmap — **Tier 1, #1: the unified TwinState** (one source of truth),
