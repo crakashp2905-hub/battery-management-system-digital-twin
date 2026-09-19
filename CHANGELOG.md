@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.51.0] - 2026-09-19
+
+Moderate-novelty tier — **3 of 3: physics + ML hybrid model** (learn only the
+residual).
+
+### Added
+- **`bms/hybrid_model.py`** — `HybridResidualModel`: keeps the ECM and learns
+  only its **residual**, `V = V_ECM(SoC, I, T) + f_θ(I, SoC, |I|, I², T)`. The
+  regressor (a small L2-regularised scaled MLP by default; any scikit-learn
+  regressor accepted) is trained on `V_measured − V_ECM`, so it only has to
+  capture the higher-order effects the 2-RC model misses. On a cell carrying a
+  smooth residual the ECM cannot fit, it cuts voltage RMSE **~8 mV → ~1 mV
+  (86 %)** and — crucially — **generalises to an independent trace in the same
+  regime**, not just the training data. This is the physics-informed /
+  neural-ODE-residual principle implemented dependency-light on scikit-learn (a
+  core dep), and honest about being a residual learner, not a from-scratch
+  electrochemical net; `score()` always reports pure-physics vs hybrid RMSE.
+- 4 tests (now **482**): unfitted hybrid is pure physics; beats physics in-sample
+  (>40 %); generalises to a holdout trace (>30 %); accepts a custom regressor.
+
 ## [0.50.0] - 2026-09-19
 
 Moderate-novelty tier — **2 of 3: probabilistic prognostics** (probabilities and

@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.50.0"
+__version__ = "0.51.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -193,6 +193,7 @@ from .grid_storage import (
     simulate_dispatch,
 )
 from .hv_safety import ContactorWeldDetector, InsulationMonitor
+from .hybrid_model import HybridResidualModel
 from .hysteresis import PlettHysteresis
 from .interpret import (
     FEATURE_NAMES,
@@ -350,6 +351,7 @@ __all__ = [
     "FleetTwin", "VehicleState", "FleetInsight",
     "thermal_runaway_probability", "RunawayForecast", "rul_distribution",
     "RULDistribution", "predict_failure", "FailurePrediction",
+    "HybridResidualModel",
     "StationaryStorage", "peak_shaving_dispatch", "arbitrage_schedule",
     "simulate_dispatch", "optimal_storage_soc",
     "AFE", "AFEConfig",
