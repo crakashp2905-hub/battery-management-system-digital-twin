@@ -157,7 +157,9 @@ def load_drivecycle_csv(path, chemistry: str = "nmc", capacity_Ah: float | None 
 
     from .chemistry import get_chemistry_props
 
-    df = pd.read_csv(path)
+    # ``comment='#'`` lets a dataset carry an attribution/licence header (real
+    # public datasets usually do) without breaking the parse.
+    df = pd.read_csv(path, comment="#", skip_blank_lines=True)
     cols = {"time_s": "time_s", "current_A": "current_A", "voltage_V": "voltage_V",
             "temperature_C": "temperature_C", "soc_true": "soc_true"}
     if columns:
