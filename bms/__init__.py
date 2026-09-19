@@ -24,7 +24,7 @@ Top-level imports for convenient one-liner use::
     )
 """
 
-__version__ = "0.46.0"
+__version__ = "0.47.0"
 
 from .afe import AFE, AFEConfig
 from .agent import (
@@ -115,6 +115,13 @@ from .datasets import (
     save_drivecycle_csv,
     soh_curve,
     synthetic_drivecycle,
+)
+from .degradation_inference import (
+    DegradationDiagnosis,
+    DegradationInference,
+    OperatingHistory,
+    infer_degradation_modes,
+    infer_mechanisms,
 )
 from .degradation_modes import diagnose_degradation_modes, synthetic_degraded_ic
 from .diagnostics import compute_crate_map, simulate_eis
@@ -280,6 +287,8 @@ __all__ = [
     "compute_dva", "compute_ica", "synthetic_discharge_for_dva",
     "simulate_eis", "compute_crate_map",
     "diagnose_degradation_modes", "synthetic_degraded_ic",
+    "infer_degradation_modes", "infer_mechanisms", "DegradationDiagnosis",
+    "DegradationInference", "OperatingHistory",
     "RangePredictor", "VehicleParams", "RouteSegment", "WeatherConditions",
     "RangePrediction", "ROUTE_PROFILES", "VEHICLE_PRESETS",
     "INDIA_CITY_ROUTES", "INDIA_WEATHER",
