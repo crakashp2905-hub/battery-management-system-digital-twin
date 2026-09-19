@@ -103,21 +103,21 @@ class VehicleParams:
     # ── Two-wheeler presets (India market) ─────────────────────────────────
     @classmethod
     def e_scooter(cls) -> "VehicleParams":
-        """Ola S1 / Ather 450X class: lightweight urban e-scooter."""
+        """Lightweight urban e-scooter profile (~130 kg, ~2–4 kWh pack, city use)."""
         return cls(mass_kg=130, drag_coefficient=0.65, frontal_area_m2=0.55,
                    rolling_resistance=0.011, regen_efficiency=0.40,
                    motor_efficiency=0.88, accessory_load_W=45.0, hvac_max_W=0.0)
 
     @classmethod
     def e_motorcycle(cls) -> "VehicleParams":
-        """Ola Roadster / Revolt RV400 class: performance electric motorcycle."""
+        """Performance electric-motorcycle profile (~185 kg, high-power, highway-capable)."""
         return cls(mass_kg=185, drag_coefficient=0.56, frontal_area_m2=0.62,
                    rolling_resistance=0.013, regen_efficiency=0.35,
                    motor_efficiency=0.88, accessory_load_W=80.0, hvac_max_W=0.0)
 
     @classmethod
     def e_moped(cls) -> "VehicleParams":
-        """Hero Electric / Ampere Magnus class: low-speed city moped."""
+        """Low-speed city-moped profile (~85 kg, low-power, short-hop economy use)."""
         return cls(mass_kg=85, drag_coefficient=0.82, frontal_area_m2=0.44,
                    rolling_resistance=0.011, regen_efficiency=0.20,
                    motor_efficiency=0.85, accessory_load_W=28.0, hvac_max_W=0.0)

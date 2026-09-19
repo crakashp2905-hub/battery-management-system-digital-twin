@@ -7,7 +7,7 @@ NMC  — LiNiMnCoO₂       High energy density, automotive/consumer
 LFP  — LiFePO₄           Long cycle life, thermally stable, grid/EV
 LMFP — LiMnFePO₄         Dual-plateau (Fe + Mn), higher voltage than LFP
 LTO  — Li₄Ti₅O₁₂         Ultra-safe, zero-strain anode, wide temperature range
-NCA  — LiNiCoAlO₂         Highest energy density, EV (Tesla), thermally sensitive
+NCA  — LiNiCoAlO₂         Highest energy density, EV traction packs, thermally sensitive
 LMO  — LiMn₂O₄            Spinel, low cost, double plateau, higher self-discharge
 SSB  — Solid-State Battery  Li-metal anode, oxide/sulfide SE, highest safety & voltage
 

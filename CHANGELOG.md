@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.55.0] - 2026-09-19
+
+Platform roadmap — **Tier 1, #1: the unified TwinState** (one source of truth),
+plus removal of vehicle brand names in favour of spec/profile selection.
+
+### Added
+- **`bms/unified_twin.py`** — `UnifiedTwin` makes the twin the **single source of
+  truth**. Every `update(voltage, current, dt, temperature)` runs one explicit
+  pipeline — *preprocessing → state estimation → parameter estimation →
+  degradation inference → safety/prognostics → state* — and returns one
+  immutable `UnifiedTwinState` carrying **everything**: SoC/SoH/capacity/R0/R1/R2
+  (with uncertainty and 95 % CIs), SOP charge/discharge headroom, the dominant
+  degradation mode + fractions, RUL median/P10/P90, thermal-runaway probability
+  over horizons, fault probability, twin confidence, observability, drift, and a
+  `version` + timestamp. Each stage delegates to the module that already
+  implements it (`BatteryDigitalTwin`, `infer_degradation_modes`, `prognostics`)
+  — this is composition and data flow, not new physics, exactly the "connect the
+  pieces" the roadmap calls for.
+- 5 tests (now **512**): one state carries every field and is the single source
+  of truth; it stays estimation-consistent (tracks SoC, valid CIs); SOP is
+  directional; an aged cell surfaces drift + resistance growth; `to_dict` is
+  JSON-ready.
+
+### Changed
+- **Removed EV brand names** (Ola / Ather / Revolt / Hero Electric / Tesla) from
+  the range-predictor presets, docstrings and dashboard labels; selection is now
+  purely by **vehicle profile + battery spec** (mass / power / use-case), e.g.
+  "E-Scooter (~130 kg, city)". The preset keys were already generic.
+
 ## [0.54.0] - 2026-09-19
 
 **Universal auto-calibration — accurate on any cell, any chemistry.** The NASA

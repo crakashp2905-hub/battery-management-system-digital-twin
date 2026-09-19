@@ -1190,9 +1190,9 @@ def render_range_predictor():
         st.markdown("**Vehicle**")
         if two_wheeler:
             _2w_presets = {
-                "e_scooter": "E-Scooter (Ola S1 / Ather 450X class)",
-                "e_motorcycle": "E-Motorcycle (Revolt RV400 class)",
-                "e_moped": "E-Moped (Hero Electric / Ampere class)",
+                "e_scooter": "E-Scooter (~130 kg, city)",
+                "e_motorcycle": "E-Motorcycle (~185 kg, highway)",
+                "e_moped": "E-Moped (~85 kg, low-speed)",
             }
             vehicle_preset = st.selectbox(
                 "Two-Wheeler Preset",
