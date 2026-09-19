@@ -4,6 +4,40 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.46.0] - 2026-09-18
+
+Autonomous self-learning twin — **wave 4 of 4: the closed loop (capstone).**
+
+### Added
+- **`bms/autonomy.py`** — `AutonomousBatteryTwin`, the closed learning loop that
+  ties waves 1–3 together into the system the strategy review pointed at: *a twin
+  that knows what it doesn't know and decides how to learn.* Each round it (1)
+  targets the parameter still worst-pinned by its Cramér–Rao bounds — dropping
+  one once targeting stops helping, so it never chases the intrinsically hard
+  slow-`R2` branch forever; (2) asks the experiment designer for the safest probe
+  that best reduces that uncertainty; (3) performs it on the real cell (a hidden
+  ground-truth plant); (4) self-calibrates, gated by **observability** (which
+  parameters the probe could identify) *and* a **held-out validation check** that
+  commits an update only if it does not worsen fidelity — making the loop
+  **monotone non-increasing in error; it cannot diverge**.
+  - Reference: a twin starting from fresh-cell parameters, shown a hidden aged
+    cell (`R0` +120 %, `Q` −12 %), drives held-out voltage RMSE from ~19 mV to
+    the **~0.7 mV sensor floor** and parameter error from 0.39 to 0.13 within a
+    few rounds *without being told what was wrong*, recovering `R0` onto truth.
+  - `degradation_report()` attributes what it learned to modes and correctly
+    names **resistance growth** as dominant (degradation-mode inference).
+- **`docs/autonomy.md`** documents the loop, the research question, and — as the
+  review stressed — the honest prior-art caveat on any novelty claim. Added to
+  the mkdocs nav (`build --strict` clean).
+- 7 tests (now **445**): loop improves fidelity over rounds; validation gating is
+  monotone non-increasing; recovers the identifiable parameter; targets its own
+  uncertainty; infers the dominant degradation mode; round record serialises;
+  runs without validation.
+
+**This completes the 4-wave autonomous-self-learning-twin program** (0.43 → 0.46):
+observability → experiment design → self-calibration → counterfactual, closed
+into one autonomous loop.
+
 ## [0.45.0] - 2026-09-18
 
 Autonomous self-learning twin — **wave 3 of 4: the Counterfactual Simulator.**
