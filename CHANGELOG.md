@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.53.0] - 2026-09-19
+
+**Validated against real data — NASA PCoE (public domain).** The twin's accuracy
+figures were synthetic; it is now run against real cells from the NASA Ames
+Li-ion battery aging dataset, out of the box (no fit to the data).
+
+### Added
+- **`scripts/validate_nasa.py`** — fetches the public-domain NASA `.mat` files
+  and runs two real-data validations, tagged `source="real"`:
+  - **SoC estimators** on a real B0005 discharge (coulomb-counted SoC as truth):
+    **coulomb 0.64 %**, ukf 12.31 %, ekf 12.55 %, joint_ekf 13.99 % RMSE. Coulomb
+    counting validates on real data; the voltage filters are worse for an honest
+    reason — the generic NMC OCV is not this cell's LiCoO₂ curve, which is exactly
+    what `bms.calibration` / the self-calibrating twin address.
+  - **State of health** across four cells (B0005/6/7/18): real capacity fade from
+    ~93–102 % to 59–72 %, crossing 80 %-of-rated EOL at cycles 45–86.
+- **`data/samples/nasa_b0005_discharge_real.csv`** — a committed ~20 KB slice of
+  real B0005 (with NASA attribution) so CI exercises a real-data result without
+  the multi-MB `.mat` files.
+- 4 real-data tests (`tests/test_validation_real.py`, now **495**): the fixture
+  loads and is tagged real; coulomb-counting is accurate (<2 %) on real data; the
+  voltage filters are worse (the calibration finding); the loader skips headers.
+
+### Changed
+- `load_drivecycle_csv` now skips `#` comment lines, so a dataset can carry an
+  attribution/licence header (real public datasets usually do) without breaking.
+- `docs/validation.md` records the real NASA numbers and marks the twin
+  **validated against real data**.
+
 ## [0.52.0] - 2026-09-19
 
 Moderate-novelty tier — **replay engine + knowledge graph** (completes the tier).
