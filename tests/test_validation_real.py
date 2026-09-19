@@ -37,6 +37,20 @@ class TestRealNASAValidation:
         board = bms.estimator_leaderboard(data)
         assert board.loc["ekf", "rmse"] > board.loc["coulomb", "rmse"]
 
+    def test_auto_calibration_improves_soc_on_real_data(self):
+        # Auto-calibrating to the real cell (no chemistry hint) beats the naive
+        # generic-OCV estimator: ~12.5 % → well under 5 % on this real discharge.
+        import numpy as np
+        data = bms.load_drivecycle_csv(str(_FIXTURE), chemistry="nmc", capacity_Ah=_CAP_AH)
+        dt = float(np.median(np.diff(data.time_s)))
+        cal = bms.auto_calibrate(data.current_A, data.voltage_V, dt, capacity_Ah=_CAP_AH)
+        assert cal.chemistry in ("nmc", "nca")          # closest templates to this LCO cell
+        est = cal.make_estimator("ekf")
+        est.reset(float(data.soc_true[0]))
+        soc = np.asarray(est.run(data.current_A, data.voltage_V, dt), float)
+        rmse = float(np.sqrt(np.mean((soc - data.soc_true) ** 2)))
+        assert rmse < 0.05                              # calibrated EKF on real data
+
     def test_loader_skips_comment_headers(self):
         # Real public datasets carry licence/attribution headers; the loader must
         # tolerate '#' comment lines.
